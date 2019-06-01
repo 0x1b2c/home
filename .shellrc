@@ -69,6 +69,7 @@ alias tmr='tmutil restore ~/TM'
 
 export ANDROID_HOME="$HOME/android-sdk"
 export GOPATH="$HOME/go"
+export GPG_TTY=$(tty)
 export PATH="$HOME/bin:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools:/usr/local/sbin:/usr/local/bin:$PATH:$GOPATH/bin"
 export PATH=".git/safe/../../bin:.git/safe/../../node_modules/.bin:$PATH"
 
