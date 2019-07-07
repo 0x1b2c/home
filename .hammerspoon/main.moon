@@ -28,27 +28,27 @@ bind 'shift alt J', 'Move window to South screen', ->
     window.focusedWindow()\moveOneScreenSouth()
 
 bind 'alt ctrl K', 'Move mouse pointer to North screen', ->
-    currentScreen = mouse.getCurrentScreen()
-    northScreen = currentScreen\toNorth()
+    mainScreen = hs.screen.mainScreen()
+    northScreen = mainScreen\toNorth()
     return unless northScreen
 
     point = mouse.getRelativePosition()
     point = {
-        x: point.x * (northScreen\fullFrame().w / currentScreen\fullFrame().w)
-        y: point.y * (northScreen\fullFrame().h / currentScreen\fullFrame().h)
+        x: point.x * (northScreen\fullFrame().w / mainScreen\fullFrame().w)
+        y: point.y * (northScreen\fullFrame().h / mainScreen\fullFrame().h)
     }
     mouse.setRelativePosition(point, northScreen)
     hs.eventtap.leftClick(mouse.getAbsolutePosition())
 
 bind 'alt ctrl J', 'Move mouse pointer to South screen', ->
-    currentScreen = mouse.getCurrentScreen()
-    southScreen = currentScreen\toSouth()
+    mainScreen = hs.screen.mainScreen()
+    southScreen = mainScreen\toSouth()
     return unless southScreen
 
     point = mouse.getRelativePosition()
     point = {
-        x: point.x * (southScreen\fullFrame().w / currentScreen\fullFrame().w)
-        y: point.y * (southScreen\fullFrame().h / currentScreen\fullFrame().h)
+        x: point.x * (southScreen\fullFrame().w / mainScreen\fullFrame().w)
+        y: point.y * (southScreen\fullFrame().h / mainScreen\fullFrame().h)
     }
     mouse.setRelativePosition(point, southScreen)
     hs.eventtap.leftClick(mouse.getAbsolutePosition())
@@ -59,55 +59,64 @@ bind 'shift ctrl cmd L', 'Rotate DELL P2715Q screen 0', ->
 bind 'shift ctrl cmd P', 'Rotate DELL P2715Q screen 90', ->
     hs.screen('DELL P2715Q')\rotate(90)
 
+bind 'shift ctrl cmd K', 'Set North screen as primary', ->
+    northScreen = hs.screen.primaryScreen()\toNorth()
+    northScreen\setPrimary() if northScreen
+
+bind 'shift ctrl cmd J', 'Set South screen as primary', ->
+    southScreen = hs.screen.primaryScreen()\toSouth()
+    southScreen\setPrimary() if southScreen
+
 
 -- A watcher must be exported to avoid Lua GC
-export appWatcher = hs.application.watcher.new((appName, eventType, application) ->
+export appWatcher = hs.application.watcher.new((appName, eventType, app) ->
     if (eventType == hs.application.watcher.activated)
         switch appName
             when 'Finder'
                 -- Bring all Finder windows forward when one gets activated
-                application\selectMenuItem({'Window', 'Bring All to Front'})
+                app\selectMenuItem({'Window', 'Bring All to Front'})
+                app\selectMenuItem({'窗口', '前置全部窗口'})
+
+                app\selectMenuItem({'View', 'Clean Up By', 'Kind'})
+                app\selectMenuItem({'显示', '整理方式', '种类'})
 )\start()
 
+export finderWatcher = hs.appfinder.appFromName('Finder')\newWatcher((element) ->
+    element\application()\selectMenuItem({'View', 'Clean Up By', 'Kind'})
+    element\application()\selectMenuItem({'显示', '整理方式', '种类'})
+)\start({hs.uielement.watcher.focusedWindowChanged})
+
 export screenWatcher = hs.screen.watcher.new(->
-    logger.d 'screen layout changed'
-    if hs.screen('DELL P2715Q')
-        logger.d 'DELL P2715Q connected'
-        hs.application.launchOrFocus('SoundflowerBed')
-        hs.audiodevice.findOutputByName('Soundflower (2ch)')\setDefaultOutputDevice()
-    else
-        logger.d 'DELL P2715Q disconnected'
-        hs.audiodevice.findOutputByName('Built-in Output')\setDefaultOutputDevice()
-        app = hs.application.get('SoundflowerBed')
-        app\kill9() if app
+    logger.d 'Screen layout changed'
+    logger.d "#{hs.screen.primaryScreen()\name()} is primary screen"
 )\start()
 
 appBindings = {
     { 'alt 1', 'Sublime Text' }
-    { 'alt 2', 'Atom' }
+    { 'alt 2', 'Visual Studio Code' }
     { 'alt 3', 'MacVim' }
-    { 'alt 4', 'Xcode' }
+    { 'alt 4', 'Xcode-beta' }
     { 'alt Q', 'QQ' }
     { 'alt W', 'WeChat' }
     { 'alt E', 'Wunderlist' }
     { 'alt R', 'Evernote' }
-    { 'alt A', 'Calendar' }
-    { 'alt S', 'Safari' }
     { 'alt T', 'Safari Technology Preview' }
     { 'alt Y', 'Typora' }
-    { 'alt U', 'Ulysses' }
+    { 'alt U', 'UlyssesMac' }
+    { 'alt I', 'Dictionary' }
+    { 'alt O', 'OmniFocus' }
+    { 'alt P', 'Mailplane' }
+    { 'alt A', 'Calendar' }
+    { 'alt S', 'Safari' }
     { 'alt D', 'Day One' }
     { 'alt F', 'Finder' }
-    { 'alt C', 'Google Chrome' }
-    { 'alt B', 'MWeb' }
     { 'alt G', 'Telegram' }
     { 'alt H', 'Dash' }
     { 'alt J', 'IntelliJ IDEA CE' }
-    { 'alt K', 'Skype' }
-    { 'alt L', 'Microsoft Outlook' }
-    { 'alt I', 'Dictionary' }
-    { 'alt O', 'OmniFocus' }
-    { 'alt P', 'Mailplane 3' }
+    { 'alt L', 'Slack' }
+    { 'alt C', 'Google Chrome' }
+    { 'alt V', 'EIM' }
+    { 'alt B', 'MWeb' }
     { 'alt N', 'Simplenote' }
     { 'alt M', 'Messages' }
 }
