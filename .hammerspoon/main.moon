@@ -3,6 +3,9 @@ mouse = hs.mouse
 moon = require 'moon'
 logger = hs.logger.new('main', 'verbose')
 
+-- Use Fn + h/l/j/k as arrow keys, y/u/i/o as mouse wheel, ,/. as left/right click.
+hs.loadSpoon 'FnMate'
+
 window.animationDuration = 0
 
 bind = (keys, message, fn) ->
@@ -122,5 +125,10 @@ appBindings = {
 }
 
 hs.fnutils.each appBindings, (binding) ->
-    bind binding[1], ->
-        hs.application.launchOrFocus binding[2]
+    key = binding[1]
+    appName = binding[2]
+
+    bind key, ->
+        hs.application.launchOrFocus appName
+        app = hs.application.get(appName)
+        app\activate(true) if app
