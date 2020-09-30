@@ -118,7 +118,11 @@ if [[ "$TERM" == "dumb" ]]; then
     alias ls='ls -F'
 fi
 
-source ~/.zsh/theme.zsh
+if [[ -x `which starship` ]]; then
+    eval "$(starship init zsh)"
+else
+    source ~/.zsh/theme.zsh
+fi
 
 source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
