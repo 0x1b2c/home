@@ -136,6 +136,6 @@ if [[ $TERM == linux ]]; then
     fbterm -- tmux new -As rainux
 fi
 
-if [[ -n $SSH_TTY && -z $TMUX ]]; then
+if [[ -z $TMUX ]]; then
     tmux new -As rainux
 fi
