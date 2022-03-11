@@ -124,11 +124,6 @@ else
     source ~/.zsh/theme.zsh
 fi
 
-source ~/.zsh/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
-
-source ~/.zsh/z/z.sh
-export _Z_DATA=~/.zsh/cache/z
-
 export PATH="$HOME/.rbenv/bin:$PATH"
 if which rbenv > /dev/null; then eval "$(rbenv init -)"; fi
 
