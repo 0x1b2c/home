@@ -6,7 +6,6 @@ ZSH_THEME_GIT_PROMPT_DIRTY="%{$reset_color%}) %{$fg[yellow]%}✗%{$reset_color%}
 ZSH_THEME_GIT_PROMPT_CLEAN="%{$reset_color%})"
 
 source ~/.zsh/git.zsh
-source ~/.zsh/docker-machine.zsh
 
 # 效果超炫的提示符，如需要禁用，注释下面配置
 function precmd {
@@ -50,6 +49,51 @@ function preexec {
 
     print -rn -- $terminfo[el]
 }
+
+# ─── 命令执行耗时 ───────────────────────────────────────────────────
+# preexec 记下开始时刻，precmd 算差值。EPOCHREALTIME 由 zsh/datetime 提供，
+# 精度到微秒；$SECONDS 只有整秒，区分不出 1.9 秒和 2.1 秒。
+#
+# 用 add-zsh-hook 而不是直接定义 precmd/preexec，因为 rc.zsh 里已经有一对
+# 设置终端标题的钩子，同名函数会互相覆盖。
+zmodload zsh/datetime
+autoload -Uz add-zsh-hook
+
+# 低于这个秒数不显示。与 starship 的默认阈值一致：短命令的耗时是噪音。
+CMD_DURATION_MIN=2
+CMD_DURATION=''
+
+_cmd_duration_format() {
+    local -F t=$1
+    local -i s=$(( t ))
+    if (( s < 60 )); then
+        printf '%.1fs' $t
+    elif (( s < 3600 )); then
+        printf '%dm%02ds' $(( s / 60 )) $(( s % 60 ))
+    else
+        printf '%dh%02dm' $(( s / 3600 )) $(( s % 3600 / 60 ))
+    fi
+}
+
+_cmd_duration_preexec() {
+    _cmd_duration_start=$EPOCHREALTIME
+}
+
+_cmd_duration_precmd() {
+    # 未经 preexec 就到 precmd，说明是空回车或首次显示提示符，没有耗时可言。
+    if (( _cmd_duration_start )); then
+        local -F elapsed=$(( EPOCHREALTIME - _cmd_duration_start ))
+        unset _cmd_duration_start
+        if (( elapsed >= CMD_DURATION_MIN )); then
+            CMD_DURATION=" %{$fg[yellow]%}$(_cmd_duration_format $elapsed)%{$reset_color%}"
+            return
+        fi
+    fi
+    CMD_DURATION=''
+}
+
+add-zsh-hook preexec _cmd_duration_preexec
+add-zsh-hook precmd  _cmd_duration_precmd
 
 setopt prompt_subst
 
@@ -131,7 +175,7 @@ function setprompt {
     ###
     # Finally, the prompt.
 
-    PROMPT_LINE1="$PR_SET_CHARSET$PR_STITLE${(e)PR_TITLEBAR}%{$fg[cyan]%}%n%{$fg[magenta]%}@%{$fg[blue]%}%M %{$fg[green]%}%~%{$reset_color%}\$(git_prompt_info)\$(docker_machine_prompt_info)"
+    PROMPT_LINE1="$PR_SET_CHARSET$PR_STITLE${(e)PR_TITLEBAR}%{$fg[cyan]%}%n%{$fg[magenta]%}@%{$fg[blue]%}%M %{$fg[green]%}%~%{$reset_color%}\$(git_prompt_info)\${CMD_DURATION}"
     PROMPT_LINE2="%{$fg[red]%}%#%{$reset_color%} YUKI.N> "
     PROMPT="$PROMPT_LINE1
 $PROMPT_LINE2"

@@ -1,18 +1,31 @@
-# location of history
-export HISTFILE=~/.zsh/history
-# number of lines kept in history
-HISTSIZE=100000
-# number of lines saved in the history after logout
-SAVEHIST=100000
+# 1. 基础设置
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=10000000        # 内存中保留的行数
+SAVEHIST=10000000        # 文件中保存的行数
 
-setopt append_history
-setopt extended_history
-setopt hist_expire_dups_first
-setopt hist_ignore_dups # ignore duplication command history list
-setopt hist_ignore_space
-setopt hist_verify
-setopt inc_append_history
-setopt share_history # share command history data
+# 2. 核心模式：写入统一，运行时隔离
+setopt INC_APPEND_HISTORY        # 立即追加到文件 (防丢，且让其他 Tab 可读)
+unsetopt SHARE_HISTORY           # 关闭实时共享。Tab 运行时互不干扰，启动时才读取历史。
+
+# 3. 记录内容控制
+setopt EXTENDED_HISTORY          # 记录时间戳和运行时长
+setopt APPEND_HISTORY            # 确保是追加模式
+
+# 4. 去重策略
+setopt HIST_IGNORE_DUPS          # 忽略连续重复 (ls -l -> ls -l)
+unsetopt HIST_IGNORE_ALL_DUPS    # 关掉强力去重，保留历史操作的完整顺序！
+
+# 5. 视觉优化 (Magic Option)
+# 虽然文件里有很多重复的命令，但按 Up 箭头或 Ctrl+R 搜索时，不要显示重复的
+setopt HIST_FIND_NO_DUPS
+
+# 6. 其他辅助
+setopt HIST_IGNORE_SPACE         # 忽略空格开头
+setopt HIST_VERIFY               # 展开历史时不立即执行
+setopt HIST_REDUCE_BLANKS        # 删掉多余空格
+setopt HIST_EXPIRE_DUPS_FIRST    # 只有当文件彻底存满(1000万行)要删老数据时，才优先删重复的
+
+setopt globdots
 
 # TODO bindkeys for them in vi mode
 # bindkey "${key[Up]}" up-line-or-local-history
@@ -35,7 +48,6 @@ setopt auto_pushd
 
 # Vi 风格键绑定
 bindkey -v
-bindkey '^R' history-incremental-search-backward
 
 # 以下字符视为单词的一部分
 WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
@@ -110,27 +122,35 @@ hash -d AS="$HOME/Library/Application Support"
 hash -d Preferences="$HOME/Library/Preferences"
 hash -d Containers="$HOME/Library/Containers"
 
-# For Emacs在Emacs终端中使用Zsh的一些设置 不推荐在Emacs中使用它
-if [[ "$TERM" == "dumb" ]]; then
-    setopt No_zle
-    PROMPT='%n@%M %/
-    >>'
-    alias ls='ls -F'
-fi
-
 if [[ -x `which starship` ]]; then
     eval "$(starship init zsh)"
 else
     source ~/.zsh/theme.zsh
 fi
 
-export PATH="$HOME/.rbenv/bin:$PATH"
-if which rbenv > /dev/null; then eval "$(rbenv init -)"; fi
+function set-term-title-precmd() {
+  emulate -L zsh
+  print -rn -- $'\e]0;'${(V%):-'%~'}$'\a' >$TTY
+}
+function set-term-title-preexec() {
+  emulate -L zsh
+  print -rn -- $'\e]0;'${(V)1}$'\a' >$TTY
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec set-term-title-preexec
+add-zsh-hook precmd set-term-title-precmd
+set-term-title-precmd
 
 if [[ $TERM == linux ]]; then
     fbterm -- tmux new -As rainux
 fi
 
-if [[ -z $TMUX ]]; then
+# 只在没有终端多路复用可用的地方自动进 tmux：SSH 会话，以及 WSL 的本地终端
+# （$WSL_DISTRO_NAME 由 WSL 注入）。本机的 GUI 终端自己有标签页，不需要。
+if [[ -z $TMUX && ( -n $SSH_TTY || -n $WSL_DISTRO_NAME ) ]]; then
     tmux new -As rainux
+fi
+
+if [[ -z $SSH_AUTH_SOCK ]]; then
+    eval `ssh-agent`
 fi
