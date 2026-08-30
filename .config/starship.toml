@@ -1,0 +1,31 @@
+command_timeout = 2000
+
+[character]
+success_symbol = "[↪](bold green)"
+error_symbol = "[↪](bold red)"
+vicmd_symbol = "[↩](bold blue)"
+
+[cmd_duration]
+show_milliseconds = true
+
+[directory]
+truncation_length = 0
+truncate_to_repo = false
+style = "green"
+
+[docker_context]
+only_with_files = false
+
+[hostname]
+ssh_only = false
+ssh_symbol = "🌐"
+style = "blue"
+format = "[$hostname]($style) [$ssh_symbol](purple)in "
+
+[username]
+style_user = "cyan"
+style_root = "red"
+format = "[$user]($style)[@](purple)"
+
+[gcloud]
+disabled = true
