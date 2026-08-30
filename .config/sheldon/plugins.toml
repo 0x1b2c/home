@@ -1,0 +1,21 @@
+# Plugins for zsh, installed and loaded by sheldon.
+#
+# rc.zsh passes $MACHINE_ROLE as SHELDON_PROFILE. A plugin with no `profiles`
+# key loads everywhere; add `profiles = ["workstation"]` to one that a server
+# has no use for.
+
+shell = "zsh"
+
+[plugins.zsh-completions]
+github = "zsh-users/zsh-completions"
+
+[plugins.zsh-autosuggestions]
+github = "zsh-users/zsh-autosuggestions"
+
+# Fish-style abbreviations: `dc` plus space expands in place, so history records
+# the command that actually ran rather than the shorthand.
+[plugins.zsh-abbr]
+github = "olets/zsh-abbr"
+
+[plugins.fast-syntax-highlighting]
+github = "zdharma-continuum/fast-syntax-highlighting"

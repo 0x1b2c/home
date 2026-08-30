@@ -80,6 +80,24 @@ bindkey -M vicmd 'j'                down-session-history
 WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
+# Plugins --------------------------------------------------------------------------------------------------------- {{{1
+#
+# sheldon clones and sources the plugins; sheldon itself comes from the package
+# manager, so there is no bootstrap here. Before Completion because
+# zsh-completions only feeds fpath, which compinit reads once; the others have no
+# such need, but sheldon emits them in one go. Not in external.zsh: that runs
+# after compinit, which the fzf and bun snippets there require.
+#
+# $MACHINE_ROLE picks the profile, so a plugin tagged in plugins.toml loads only
+# where it is wanted. Unset means the minimal set, which is what a plain clone
+# gets.
+if (( $+commands[sheldon] )); then
+    eval "$(SHELDON_PROFILE=$MACHINE_ROLE sheldon source)"
+
+    bindkey '^e' autosuggest-accept
+fi
+# ----------------------------------------------------------------------------------------------------------------- }}}1
+
 # Completion ------------------------------------------------------------------------------------------------------ {{{1
 #
 setopt AUTO_LIST                 # list choices on an ambiguous completion

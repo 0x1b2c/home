@@ -1,0 +1,51 @@
+# Read and written by zsh-abbr. What belongs here: a shorthand whose expansion
+# you want to see, either to learn the real flags or to edit them before running.
+
+# Searching
+abbr "f"="fd -u -u"
+abbr "fda"="fd -I"
+abbr "fdu"="fd -u"
+abbr "psg"="ps aux | grep"
+
+# Media
+abbr "gldl"="gallery-dl"
+abbr "mpvq"="mpv >/dev/null 2&>1"
+abbr "ytdl"="yt-dlp --force-overwrites --cookies-from-browser brave"
+abbr "ytdlmp4"="yt-dlp --force-overwrites -f \"bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best\""
+abbr "ytdlsub"="yt-dlp --write-sub --embed-subs --convert-subs srt --sub-lang"
+
+# Misc
+abbr "ka"="killall"
+abbr "lsa"="ls --absolute=on --hyperlink"
+
+# pacman
+abbr "pacupg"="sudo pacman --color=auto -Syu"
+abbr "pacupgd"="sudo pacman --color=auto -Syud"
+abbr "pacin"="sudo pacman --color=auto -S"
+abbr "pacins"="sudo pacman --color=auto -Up"
+abbr "pacre"="sudo pacman --color=auto -R"
+abbr "pacrem"="sudo pacman --color=auto -Rns"
+abbr "pacrep"="pacman --color=auto -Si"
+abbr "pacreps"="pacman --color=auto -Ss"
+abbr "pacloc"="pacman --color=auto -Qi"
+abbr "paclocs"="pacman --color=auto -Qs"
+abbr "pacupd"="sudo pacman --color=auto -Sy && sudo abs"
+abbr "pacinsd"="sudo pacman --color=auto -S --nodeps"
+abbr "pacmir"="sudo pacman --color=auto -Syy"
+abbr "pacfile"="pacman --color=auto -Qo"
+abbr "pacfiles"="pacman --color=auto -Qlq"
+
+# yay
+abbr "yaoupg"="yay -Syu --aur --devel"
+abbr "yaoin"="yay -S"
+abbr "yaoins"="yay -Up"
+abbr "yaore"="yay -R"
+abbr "yaorem"="yay -Rns"
+abbr "yaorep"="yay -Si"
+abbr "yaoreps"="yay -Ss"
+abbr "yaoloc"="yay -Qi"
+abbr "yaolocs"="yay -Qs"
+abbr "yaoupd"="yay -Sy && sudo abs"
+abbr "yaoinsd"="yay -S --nodeps"
+abbr "yaomir"="yay -Syy"
+abbr "yaoget"="yay -G"
