@@ -150,32 +150,31 @@ fi
 
 # Functions ------------------------------------------------------------------------------------------------------- {{{1
 #
+# dash: pick a project from ~/.projects with fzf, cd into it, show git status if it is a repo. -------------------- {{{2
 function dash() {
     local target
-    # 用 grep 物理拦截注释行和空行，只把纯净的数据流放给 fzf
-    target=$(grep -vE '^\s*(#|$)' ~/.projects | fzf --prompt="⚡️ 项目控制台 > " --delimiter="|" --with-nth=1,2)
+    # Strip comments and blank lines before fzf ever sees them.
+    target=$(grep -vE '^\s*(#|$)' ~/.projects | fzf --prompt="⚡️ project > " --delimiter="|" --with-nth=1,2)
 
     if [[ -n "$target" ]]; then
-        # 提取路径并物理跳转 (触发 zoxide 底层计分)
+        # cd rather than z, so that zoxide still scores the jump.
         local dir=$(echo "$target" | awk -F '|' '{print $1}' | tr -d ' ')
         cd "$dir" || return
 
-        # 瞬间清场，保持心流干净
         clear
 
-        # 落地雷达侦测：判断是不是 Git 战场
         if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-            # 是 Git 仓库：高亮打印目录名，并输出极简状态
-            echo -e "\033[1;32m[🎯 项目已切入: $(basename "$PWD")]\033[0m"
+            echo -e "\033[1;32m[🎯 project: $(basename "$PWD")]\033[0m"
             git status -sb
             echo ""
         else
-            # 普通目录：低调提示
-            echo -e "\033[1;34m[📁 目录已切入: $(basename "$PWD")]\033[0m\n"
+            echo -e "\033[1;34m[📁 directory: $(basename "$PWD")]\033[0m\n"
         fi
     fi
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# diff: colourised diff through delta, keeping diff's own exit status rather than delta's. ------------------------ {{{2
 if [[ -x $(which delta) ]]; then
     diff() {
         command diff -ur "$@" | delta
@@ -183,13 +182,14 @@ if [[ -x $(which delta) ]]; then
     }
     compdef _diff diff
 fi
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
-# 用 sha256 对比两个目录，零写入零删除，只读
-# 用法: dirdiff a/ b/
-# 无输出 = 完全一致；有 < / > 行 = 那些文件不一致或单边存在
+# dirdiffs: compare two trees by the sha256 of every file. Read-only, writes and deletes nothing. ----------------- {{{2
+#   dirdiffs <a> <b>
+# No output means identical; < and > lines are files that differ or exist on one side only.
 dirdiffs() {
     [ $# -eq 2 ] || {
-        echo "usage: dirdiff <a> <b>" >&2
+        echo "Usage: dirdiffs <a> <b>" >&2
         return 2
     }
     local hash
@@ -202,46 +202,47 @@ dirdiffs() {
         <(cd "${1%/}" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $hash) \
         <(cd "${2%/}" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 $hash)
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
-# 对比两个目录的内容是否字节级一致（忽略权限/属主/时间）
-# 用法: dirdiff src/ dst/
-# 静默退出 0 = 内容完全一致；有输出 = 有差异
+# dirdiff: compare two trees byte for byte, ignoring permissions, owner and timestamps. --------------------------- {{{2
+#   dirdiff <src/> <dst/>
+# Silent exit 0 means identical; any output is a difference.
 dirdiff() {
     if [ $# -ne 2 ]; then
-        echo "usage: dirdiff <src/> <dst/>" >&2
+        echo "Usage: dirdiff <src/> <dst/>" >&2
         return 2
     fi
     rsync -nci --checksum --no-perms --no-owner --no-group --no-times \
         --delete "${1%/}/" "${2%/}/"
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
-# 严格版：连权限/时间也要一致
+# dirdiff-strict: same as dirdiff, but permissions and timestamps must match as well. ----------------------------- {{{2
 dirdiff-strict() {
     if [ $# -ne 2 ]; then
-        echo "usage: dirdiff-strict <src/> <dst/>" >&2
+        echo "Usage: dirdiff-strict <src/> <dst/>" >&2
         return 2
     fi
     rsync -nci --checksum --delete "${1%/}/" "${2%/}/"
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# ic: show an image in WezTerm. HEIC is converted to PNG first, since WezTerm cannot render it. ------------------- {{{2
 ic() {
     local target="$1"
-    # 检查文件后缀是不是 heic (忽略大小写)
     if [[ "${target:e:l}" == "heic" || "${target:l}" == *.heic ]]; then
-        # 在系统的临时目录建一个 png 文件
         local tmpfile=$(mktemp).png
-        # 调用 macOS 原生 sips 极速转码
         sips -s format png "$target" --out "$tmpfile" >/dev/null 2>&1
-        # 用 WezTerm 渲染
         wezterm imgcat "$tmpfile"
-        # 阅后即焚
         rm "$tmpfile"
     else
-        # 其他格式直接渲染
         wezterm imgcat "$target"
     fi
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# lc: print the absolute paths of the arguments (default $PWD) and copy them to the clipboard. -------------------- {{{2
+#   -P resolves symlinks, -L keeps them (the default).
 lc() {
     local -a phys logi
     zparseopts -D -- P=phys L=logi || return 1
@@ -255,15 +256,17 @@ lc() {
     print -rn -- ${(F)paths} | pbcopy
 }
 compdef _files lc
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# proxy: turn the http/https/all proxy environment variables on or off. ------------------------------------------- {{{2
 proxy() {
     if [[ $1 == on ]]; then
-        echo http/https/all proxy turned on
-        export https_proxy=http://127.0.0.1:6152
-        export http_proxy=http://127.0.0.1:6152
-        export all_proxy=socks5://127.0.0.1:6153
+        echo 'Proxy turned on for http, https and all'
+        export https_proxy=http://10.0.1.4:6152
+        export http_proxy=http://10.0.1.4:6152
+        export all_proxy=socks5://10.0.1.4:6153
     elif [[ $1 == off ]]; then
-        echo http/https/all proxy turned off
+        echo 'Proxy turned off for http, https and all'
         unset http_proxy
         unset https_proxy
         unset all_proxy
@@ -271,45 +274,48 @@ proxy() {
         echo 'Usage: proxy [on|off]'
     fi
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# retry: rerun a command every second until it succeeds. ---------------------------------------------------------- {{{2
 retry() {
     local cmd="$*"
     until eval "$cmd"; do
-        echo "retrying: $cmd"
+        echo "Retrying: $cmd"
         sleep 1
     done
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
+# set_acl_inherit: grant a user inherited full access to a directory on macOS. ------------------------------------ {{{2
+# Everything created in it afterwards inherits the same access.
+#   set_acl_inherit <user> <dir>
 set_acl_inherit() {
-    # 检查参数数量
     if [ "$#" -ne 2 ]; then
-        echo "用法: set_acl_inherit <受益用户名> <目标目录>"
-        echo "示例: set_acl_inherit satou /Users/shio/Downloads"
+        echo "Usage:   set_acl_inherit <user> <dir>" >&2
+        echo "Example: set_acl_inherit satou /Users/shio/Downloads" >&2
         return 1
     fi
 
     local target_user="$1"
     local target_dir="$2"
 
-    # 检查目录是否存在
     if [ ! -d "$target_dir" ]; then
-        echo "错误: 目录「$target_dir」不存在。"
+        echo "No such directory: $target_dir" >&2
         return 1
     fi
 
-    # 执行 ACL 授权
     sudo chmod -R +a "$target_user allow read,write,execute,delete,append,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" "$target_dir"
 
-    # 验证执行结果
     if [ $? -eq 0 ]; then
-        echo "成功: 已为「$target_user」在「$target_dir」配置完毕 ACL 继承规则。"
+        echo "Granted $target_user inherited access to $target_dir"
     else
-        echo "失败: 配置 ACL 规则时出错，请检查是否拥有 sudo 权限。"
+        echo "Failed to set the ACL; check that you have sudo rights" >&2
     fi
 }
+# ----------------------------------------------------------------------------------------------------------------- }}}2
 
-# launchctl on macOS only.
-# ─── launchctl wrapper (only for gui/$UID domain) ──────────────
+# lctl: launchctl wrapper for the gui/$UID domain. ---------------------------------------------------------------- {{{2
+#
 # Usage:
 #   lctl reload    1b2c.aphrissa            # bootout + bootstrap by label
 #   lctl print     1b2c.aphrissa            # dump job state
@@ -343,7 +349,7 @@ lctl() {
     esac
 }
 
-# ─── completion for lctl ───────────────────────────────────────
+# _lctl: completion for lctl.
 _lctl() {
     local -a subs
     subs=(
@@ -372,6 +378,8 @@ _lctl() {
     esac
 }
 compdef _lctl lctl
+# ----------------------------------------------------------------------------------------------------------------- }}}2
+
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 [ -f ~/.private_rc ] && . ~/.private_rc
