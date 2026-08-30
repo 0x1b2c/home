@@ -2,6 +2,10 @@
 # define in shellrc.zsh, PATH in paths.zsh. Sections run in the order they must:
 # history, keys, completion, directories, terminal, session, and last of all the
 # hand-off to tmux.
+#
+# Loaded from ~/.zshrc, so interactive shells only, after ~/.zshenv and
+# ~/.zprofile have set the environment and PATH. It is this file that pulls in
+# shellrc.zsh, external.zsh and theme.zsh, each at the point it requires.
 
 # History --------------------------------------------------------------------------------------------------------- {{{1
 #

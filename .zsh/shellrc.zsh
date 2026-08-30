@@ -2,6 +2,9 @@
 # run again at any moment: aliases, functions, and absolute assignments
 # only. Nothing that accumulates, no setopt, no bindkey, no compinit.
 # That invariant is what makes reload_shellrc work.
+#
+# Loaded from rc.zsh, and it has to stay after the compinit there: the compdef
+# calls below fail without it.
 alias reload_shellrc='source ~/.zsh/shellrc.zsh'
 alias reload_paths='source ~/.zsh/paths.zsh'
 
