@@ -118,17 +118,14 @@ zstyle ':completion:*:warnings' format $'\e[01;31m -- No Matches Found --\e[0m'
 # Import shellrc
 [ -f ~/.zsh/shellrc.zsh ] && . ~/.zsh/shellrc.zsh
 
+# Trust ./bin and ./node_modules/.bin only in repositories marked with .git/safe
+export PATH=".git/safe/../../bin:.git/safe/../../node_modules/.bin:$PATH"
+
 # Named directories, so that cd ~xxx works
 hash -d VHOST="/var/www/vhosts"
 hash -d AS="$HOME/Library/Application Support"
 hash -d Preferences="$HOME/Library/Preferences"
 hash -d Containers="$HOME/Library/Containers"
-
-if [[ -x `which starship` ]]; then
-    eval "$(starship init zsh)"
-else
-    source ~/.zsh/theme.zsh
-fi
 
 function set-term-title-precmd() {
   emulate -L zsh
@@ -143,17 +140,32 @@ add-zsh-hook preexec set-term-title-preexec
 add-zsh-hook precmd set-term-title-precmd
 set-term-title-precmd
 
-if [[ $TERM == linux ]]; then
-    fbterm -- tmux new -As rainux
-fi
-
-# No general way to tell whether a multiplexer is already running, so the
-# rule is just: not in tmux, plus a whitelist of SSH and WSL. Local WezTerm
-# and Ghostty stay out; a tmux per tab is absurd.
-if [[ -z $TMUX && ( -n $SSH_TTY || -n $WSL_DISTRO_NAME ) ]]; then
-    tmux new -As rainux
-fi
-
+# An agent first, then the keys. On macOS the Keychain holds the passphrases,
+# but only load them when the agent is empty: a locked Keychain otherwise turns
+# every new shell into an interactive passphrase prompt.
 if [[ -z $SSH_AUTH_SOCK ]]; then
     eval `ssh-agent`
+fi
+if [[ $OSTYPE == darwin* ]]; then
+    ssh-add -l &> /dev/null || ssh-add --apple-use-keychain 2> /dev/null
+fi
+
+# Shell snippets shipped by other programs.
+[ -f ~/.zsh/external.zsh ] && . ~/.zsh/external.zsh
+
+# Fall back to the hand-written prompt when nothing out there claimed it.
+# The test is on this shell's own state, not on $STARSHIP_SHELL, which is
+# exported and would be inherited by shells that never ran starship at all.
+(( $+functions[prompt_starship_precmd] )) || source ~/.zsh/theme.zsh
+
+# NOTE: this hand-off is the last thing the file does and has to stay that way.
+# The command blocks until tmux exits, so anything placed below it would only
+# run after a detach, and a new tmux server would inherit an environment that
+# was still half configured. Add new things above this line.
+#
+# No general way to tell whether a multiplexer is already running, so the rule
+# is just: not in tmux, plus a whitelist of SSH, WSL and the Linux console.
+# Local WezTerm and Ghostty stay out; a tmux per tab is absurd.
+if [[ -z $TMUX && ( -n $SSH_TTY || -n $WSL_DISTRO_NAME || $TERM == linux ) ]]; then
+    tmux new -As main
 fi
