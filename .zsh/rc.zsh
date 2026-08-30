@@ -84,21 +84,18 @@ bindkey "\e/" _history-complete-older
 bindkey "\e," _history-complete-newer
 
 # Completion caching
-zstyle ':completion::complete:*' use-cache on
-zstyle ':completion::complete:*' cache-path ~/.zsh/cache
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path ${XDG_CACHE_HOME:-$HOME/.cache}/zsh
 # zstyle ':completion:*:cd:*' ignore-parents parent pwd
 
 # Completion Options
-zstyle ':completion:*:match:*' original only
 zstyle ':completion::prefix-1:*' completer _complete
 zstyle ':completion:predict:*' completer _complete
 zstyle ':completion:incremental:*' completer _complete _correct
-zstyle ':completion:*' completer _complete _prefix _correct _prefix _match _approximate
 
 # Path Expansion
 zstyle ':completion:*' expand 'yes'
-zstyle ':completion:*' squeeze-shlashes 'yes'
-zstyle ':completion::complete:*' '\\'
+zstyle ':completion:*' squeeze-slashes 'yes'
 
 zstyle ':completion:*:*:*:default' menu no select
 zstyle ':completion:*:*:default' force-list always
@@ -116,8 +113,6 @@ zstyle ':completion:*' completer _complete _match _approximate
 zstyle ':completion:*:match:*' original only
 zstyle ':completion:*:approximate:*' max-errors 1 numeric
 
-compdef pkill=kill
-compdef pkill=killall
 zstyle ':completion:*:*:kill:*' menu no select
 zstyle ':completion:*:processes' command 'ps -au$USER'
 
