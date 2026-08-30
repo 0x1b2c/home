@@ -29,27 +29,41 @@ setopt HIST_EXPIRE_DUPS_FIRST    # once the file is genuinely full, duplicates g
 
 setopt globdots
 
-# TODO bindkeys for them in vi mode
-# bindkey "${key[Up]}" up-line-or-local-history
-# bindkey "${key[Down]}" down-line-or-local-history
-
-up-line-or-local-history() {
-    zle set-local-history 1
-    zle up-line-or-history
-    zle set-local-history 0
-}
-zle -N up-line-or-local-history
-down-line-or-local-history() {
-    zle set-local-history 1
-    zle down-line-or-history
-    zle set-local-history 0
-}
-zle -N down-line-or-local-history
-
 setopt auto_pushd
+
+# Up and Down walk only this shell's own commands; Ctrl-R still searches all of
+# history. zsh has no option for this: set-local-history filters lines imported
+# from other running shells, not the file read at startup, so the boundary has
+# to be remembered by hand.
+#
+# The floor must be taken at the first prompt, not here: zsh reads the history
+# file after the rc files, so $HISTCMD is still 1 at this point.
+autoload -Uz add-zsh-hook
+typeset -gi _hist_floor=0
+_set_hist_floor() { (( _hist_floor )) || _hist_floor=$HISTCMD }
+add-zsh-hook precmd _set_hist_floor
+
+# The test has to come before the move: assigning HISTNO afterwards does not put
+# BUFFER back, so clamping on the way out does not work.
+up-session-history() { (( HISTNO > _hist_floor )) && zle up-line-or-history }
+down-session-history() { zle down-line-or-history }
+zle -N up-session-history
+zle -N down-session-history
 
 # Vi style key bindings
 bindkey -v
+
+# Arrow keys send \e[A in normal cursor mode and \eOA in application mode, and
+# which one arrives depends on the terminal, so bind both forms.
+zmodload zsh/terminfo
+bindkey -M viins "$terminfo[kcuu1]" up-session-history
+bindkey -M viins "$terminfo[kcud1]" down-session-history
+bindkey -M viins '^[[A'             up-session-history
+bindkey -M viins '^[[B'             down-session-history
+bindkey -M vicmd '^[[A'             up-session-history
+bindkey -M vicmd '^[[B'             down-session-history
+bindkey -M vicmd 'k'                up-session-history
+bindkey -M vicmd 'j'                down-session-history
 
 # Characters treated as part of a word
 WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
