@@ -8,12 +8,12 @@
 
 # LS_COLORS, read by ls, eza and the completion menu. GNU coreutils names it
 # dircolors; the homebrew build on macOS prefixes every tool with g.
-[[ -x $(which dircolors) ]] && eval "$(dircolors -b)"
-[[ -x $(which gdircolors) ]] && eval "$(gdircolors -b)"
+(( $+commands[dircolors] )) && eval "$(dircolors -b)"
+(( $+commands[gdircolors] )) && eval "$(gdircolors -b)"
 
-[[ -x $(which starship) ]] && eval "$(starship init zsh)"
-[[ -x $(which mise) ]] && eval "$(mise activate zsh)"
-[[ -x $(which zoxide) ]] && eval "$(zoxide init zsh)"
+(( $+commands[starship] )) && eval "$(starship init zsh)"
+(( $+commands[mise] )) && eval "$(mise activate zsh)"
+(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 [ -s ~/.bun/_bun ] && source ~/.bun/_bun

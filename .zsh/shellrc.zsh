@@ -65,7 +65,7 @@ fi
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
 # Extra ----------------------------------------------------------------------------------------------------------- {{{2
-if [[ -x $(which eza) ]]; then
+if (( $+commands[eza] )); then
     alias ls='eza --binary --color-scale=all --hyperlink --icons=auto'
     alias lsa='ls --absolute=on --hyperlink'
 elif [[ $OSTYPE == darwin* ]]; then
@@ -74,17 +74,17 @@ else
     alias ls='ls --color -hF --show-control-chars'
 fi
 
-if [[ -x $(which bat) ]]; then
+if (( $+commands[bat] )); then
     alias cat='bat'
     alias less='bat'
 else
     alias less='less -r'
 fi
 
-[[ -x $(which curlie) ]] && alias curl='curlie'
-[[ -x $(which dog) ]] && alias dig='dog'
-[[ -x $(which mongosh) ]] && alias mongo='mongosh'
-[[ -x $(which wget2) ]] && alias wget='wget2'
+(( $+commands[curlie] )) && alias curl='curlie'
+(( $+commands[dog] )) && alias dig='dog'
+(( $+commands[mongosh] )) && alias mongo='mongosh'
+(( $+commands[wget2] )) && alias wget='wget2'
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
 # Arch Linux ------------------------------------------------------------------------------------------------------ {{{2
@@ -177,7 +177,7 @@ function dash() {
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
 # diff: colourised diff through delta, keeping diff's own exit status rather than delta's. ------------------------ {{{2
-if [[ -x $(which delta) ]]; then
+if (( $+commands[delta] )); then
     diff() {
         command diff -ur "$@" | delta
         return $pipestatus[1]
