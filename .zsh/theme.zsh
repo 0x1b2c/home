@@ -7,7 +7,7 @@ ZSH_THEME_GIT_PROMPT_CLEAN="%{$reset_color%})"
 
 source ~/.zsh/git.zsh
 
-# 效果超炫的提示符，如需要禁用，注释下面配置
+# Comment out the block below to disable the prompt.
 function precmd {
 
     local TERMWIDTH
@@ -50,16 +50,14 @@ function preexec {
     print -rn -- $terminfo[el]
 }
 
-# ─── 命令执行耗时 ───────────────────────────────────────────────────
-# preexec 记下开始时刻，precmd 算差值。EPOCHREALTIME 由 zsh/datetime 提供，
-# 精度到微秒；$SECONDS 只有整秒，区分不出 1.9 秒和 2.1 秒。
-#
-# 用 add-zsh-hook 而不是直接定义 precmd/preexec，因为 rc.zsh 里已经有一对
-# 设置终端标题的钩子，同名函数会互相覆盖。
+# ─── Command duration ───────────────────────────────────────────────
+# EPOCHREALTIME rather than $SECONDS, which cannot tell 1.9s from 2.1s.
+# Registered as hooks because rc.zsh already defines precmd and preexec
+# for the terminal title.
 zmodload zsh/datetime
 autoload -Uz add-zsh-hook
 
-# 低于这个秒数不显示。与 starship 的默认阈值一致：短命令的耗时是噪音。
+# Below this the number is just noise. Same default as starship.
 CMD_DURATION_MIN=2
 CMD_DURATION=''
 
@@ -80,7 +78,7 @@ _cmd_duration_preexec() {
 }
 
 _cmd_duration_precmd() {
-    # 未经 preexec 就到 precmd，说明是空回车或首次显示提示符，没有耗时可言。
+    # No preexec means an empty line or the first prompt: nothing to report.
     if (( _cmd_duration_start )); then
         local -F elapsed=$(( EPOCHREALTIME - _cmd_duration_start ))
         unset _cmd_duration_start

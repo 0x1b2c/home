@@ -1,29 +1,31 @@
-# 1. 基础设置
+# 1. Basics
+# Same path as /etc/zshrc uses. Anywhere else splits the history with
+# shells that never reach this file.
 HISTFILE="$HOME/.zsh_history"
-HISTSIZE=10000000        # 内存中保留的行数
-SAVEHIST=10000000        # 文件中保存的行数
+HISTSIZE=10000000        # lines kept in memory
+SAVEHIST=10000000        # lines saved to the file
 
-# 2. 核心模式：写入统一，运行时隔离
-setopt INC_APPEND_HISTORY        # 立即追加到文件 (防丢，且让其他 Tab 可读)
-unsetopt SHARE_HISTORY           # 关闭实时共享。Tab 运行时互不干扰，启动时才读取历史。
+# 2. One file to write to, but tabs stay out of each other's way
+setopt INC_APPEND_HISTORY        # append at once, so nothing is lost on a crash
+unsetopt SHARE_HISTORY           # no live sharing; a tab reads history at startup only
 
-# 3. 记录内容控制
-setopt EXTENDED_HISTORY          # 记录时间戳和运行时长
-setopt APPEND_HISTORY            # 确保是追加模式
+# 3. What gets recorded
+setopt EXTENDED_HISTORY          # timestamp and duration
+setopt APPEND_HISTORY            # never truncate
 
-# 4. 去重策略
-setopt HIST_IGNORE_DUPS          # 忽略连续重复 (ls -l -> ls -l)
-unsetopt HIST_IGNORE_ALL_DUPS    # 关掉强力去重，保留历史操作的完整顺序！
+# 4. Duplicates
+setopt HIST_IGNORE_DUPS          # drop consecutive repeats only
+unsetopt HIST_IGNORE_ALL_DUPS    # keep the rest: the order things were run in matters
 
-# 5. 视觉优化 (Magic Option)
-# 虽然文件里有很多重复的命令，但按 Up 箭头或 Ctrl+R 搜索时，不要显示重复的
+# 5. Recall
+# The file keeps duplicates; Up and Ctrl+R should not show them.
 setopt HIST_FIND_NO_DUPS
 
-# 6. 其他辅助
-setopt HIST_IGNORE_SPACE         # 忽略空格开头
-setopt HIST_VERIFY               # 展开历史时不立即执行
-setopt HIST_REDUCE_BLANKS        # 删掉多余空格
-setopt HIST_EXPIRE_DUPS_FIRST    # 只有当文件彻底存满(1000万行)要删老数据时，才优先删重复的
+# 6. Misc
+setopt HIST_IGNORE_SPACE         # a leading space keeps a command out
+setopt HIST_VERIFY               # expand a history reference without running it
+setopt HIST_REDUCE_BLANKS        # strip redundant whitespace
+setopt HIST_EXPIRE_DUPS_FIRST    # once the file is genuinely full, duplicates go first
 
 setopt globdots
 
@@ -46,13 +48,13 @@ zle -N down-line-or-local-history
 
 setopt auto_pushd
 
-# Vi 风格键绑定
+# Vi style key bindings
 bindkey -v
 
-# 以下字符视为单词的一部分
+# Characters treated as part of a word
 WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 
-# 自动补全功能
+# Completion
 setopt AUTO_LIST
 setopt AUTO_MENU
 setopt MENU_COMPLETE
@@ -87,7 +89,7 @@ zstyle ':completion::complete:*' '\\'
 zstyle ':completion:*:*:*:default' menu no select
 zstyle ':completion:*:*:default' force-list always
 
-# 自动补全时候选菜单中的选项使用 dircolors 设定的彩色显示
+# Color the completion menu with dircolors
 if [[ ! ($OSTYPE == darwin*) ]]; then
     eval $(dircolors -b)
     export ZLSCOLORS="${LS_COLORS}"
@@ -116,7 +118,7 @@ zstyle ':completion:*:warnings' format $'\e[01;31m -- No Matches Found --\e[0m'
 # Import .shellrc
 [ -f ~/.shellrc ] && . ~/.shellrc
 
-# 路径别名 进入相应的路径时只要 cd ~xxx
+# Named directories, so that cd ~xxx works
 hash -d VHOST="/var/www/vhosts"
 hash -d AS="$HOME/Library/Application Support"
 hash -d Preferences="$HOME/Library/Preferences"
@@ -145,8 +147,9 @@ if [[ $TERM == linux ]]; then
     fbterm -- tmux new -As rainux
 fi
 
-# 只在没有终端多路复用可用的地方自动进 tmux：SSH 会话，以及 WSL 的本地终端
-# （$WSL_DISTRO_NAME 由 WSL 注入）。本机的 GUI 终端自己有标签页，不需要。
+# No general way to tell whether a multiplexer is already running, so the
+# rule is just: not in tmux, plus a whitelist of SSH and WSL. Local WezTerm
+# and Ghostty stay out; a tmux per tab is absurd.
 if [[ -z $TMUX && ( -n $SSH_TTY || -n $WSL_DISTRO_NAME ) ]]; then
     tmux new -As rainux
 fi
