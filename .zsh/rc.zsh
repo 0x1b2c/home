@@ -115,8 +115,8 @@ zstyle ':completion:*:descriptions' format $'\e[01;33m -- %d --\e[0m'
 zstyle ':completion:*:messages' format $'\e[01;35m -- %d --\e[0m'
 zstyle ':completion:*:warnings' format $'\e[01;31m -- No Matches Found --\e[0m'
 
-# Import .shellrc
-[ -f ~/.shellrc ] && . ~/.shellrc
+# Import shellrc
+[ -f ~/.zsh/shellrc.zsh ] && . ~/.zsh/shellrc.zsh
 
 # Named directories, so that cd ~xxx works
 hash -d VHOST="/var/www/vhosts"

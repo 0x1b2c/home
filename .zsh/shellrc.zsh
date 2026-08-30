@@ -2,7 +2,7 @@
 # run again at any moment: aliases, functions, and absolute assignments
 # only. Nothing that accumulates, no setopt, no bindkey, no compinit.
 # That invariant is what makes reload_shellrc work.
-alias reload_shellrc='source ~/.shellrc'
+alias reload_shellrc='source ~/.zsh/shellrc.zsh'
 
 # Aliases --------------------------------------------------------------------------------------------------------- {{{1
 #
@@ -376,4 +376,4 @@ compdef _lctl lctl
 
 [ -f ~/.private_rc ] && . ~/.private_rc
 
-# vim: set fdm=marker fdl=1 ft=zsh tw=120:
+# vim: set fdm=marker fdl=1 tw=120:
