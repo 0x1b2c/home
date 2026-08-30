@@ -118,9 +118,6 @@ zstyle ':completion:*:warnings' format $'\e[01;31m -- No Matches Found --\e[0m'
 # Import shellrc
 [ -f ~/.zsh/shellrc.zsh ] && . ~/.zsh/shellrc.zsh
 
-# Trust ./bin and ./node_modules/.bin only in repositories marked with .git/safe
-export PATH=".git/safe/../../bin:.git/safe/../../node_modules/.bin:$PATH"
-
 # Named directories, so that cd ~xxx works
 hash -d VHOST="/var/www/vhosts"
 hash -d AS="$HOME/Library/Application Support"

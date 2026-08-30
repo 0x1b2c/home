@@ -3,6 +3,7 @@
 # only. Nothing that accumulates, no setopt, no bindkey, no compinit.
 # That invariant is what makes reload_shellrc work.
 alias reload_shellrc='source ~/.zsh/shellrc.zsh'
+alias reload_paths='source ~/.zsh/paths.zsh'
 
 # Aliases --------------------------------------------------------------------------------------------------------- {{{1
 #
@@ -119,7 +120,7 @@ alias yaoget='yay -G'
 
 # Environment ----------------------------------------------------------------------------------------------------- {{{1
 #
-# ANDROID_HOME, BUN_INSTALL, GOPATH are now in ~/.shell_paths
+# ANDROID_HOME, BUN_INSTALL, GOPATH are now in ~/.zsh/paths.zsh
 export EZA_CONFIG_DIR="$HOME/.config/eza"
 export FZF_DEFAULT_COMMAND='rg --hidden --no-ignore -l ""'
 export FZF_DEFAULT_OPTS='--bind=ctrl-n:page-down,ctrl-p:page-up,ctrl-alt-f:forward-word,ctrl-alt-b:backward-word'
@@ -144,8 +145,6 @@ fi
 if [[ $TERM == linux ]]; then
     export LANG='C'
 fi
-
-[ -f ~/.shell_paths ] && source ~/.shell_paths
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # Functions ------------------------------------------------------------------------------------------------------- {{{1
