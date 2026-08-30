@@ -1,68 +1,165 @@
 [core]
 	; eol = lf
-	autocrlf = input
+	autocrlf = input      # Convert CRLF→LF on commit, keep LF on checkout
 	safecrlf = warn
+	quotepath = off        # Show non-ASCII filenames as-is (e.g. CJK)
+	excludesfile = ~/.gitignore
+	pager = delta          # Use delta for all paged output (diff, log, show, etc.)
+	fsync = none
+[interactive]
+	diffFilter = delta --color-only  # Delta rendering for `git add -p`
+[delta]
+	navigate = true    # use n and N to move between diff sections
+	tabs = 2
+	; side-by-side = true
+	line-numbers = true
+	# Map git's colorMoved output to distinct delta styles
+	# so swapped/moved lines are visually different from plain add/remove
+	map-styles = "bold purple => syntax #330033, bold cyan => syntax #003333"
+
 [github]
-	user = rainux
+	user = 0x1b2c
 [branch]
-	autosetuprebase = always
+	autosetuprebase = always  # New tracking branches default to rebase on pull
 [color]
-	ui		= auto
+	ui = true
+[color "diff"]
+	meta = 11
+	frag = magenta bold
+	commit = yellow bold
+	old = "#ff5555"
+	fsync = none
+	new = "#50fa7b"
+	whitespace = red reverse
+
 [diff]
-	renames = copies
-	tool	= gvimdiff
-	compactionHeuristic = true
+	colorMoved = default       # Highlight moved lines in diff (purple=source, cyan=destination)
+	renames = copies           # Detect renames and copies
+	; tool	= difftastic disabled due to delta
+	compactionHeuristic = true # Produce more readable diffs by shifting hunk boundaries
 [difftool]
 	prompt = false
+[difftool "difftastic"]
+    cmd = difft "$LOCAL" "$REMOTE"
+[pager]
+	difftool = true
 [user]
-	name = Rainux Luo
-	email = rainux@gmail.com
+	email = interface@1b2c.org
+	name = 1b2c
+	signingKey = 876DF69CF7BD9DA6807FF56C0B10A078285066FD
+[includeIf "gitdir:~/work/"]
+	path = ~/work/.gitconfig   # Separate config (name/email) for work repos
 [merge]
 	summary = true
 	tool	= gvimdiff
+[rebase]
+	updateRefs = true
+	instructionFormat = %as %an %s   # Show author date in the interactive todo list
 [push]
 	default = simple
+	autoSetupRemote = true     # `git push` auto-creates remote tracking branch
+	followTags = true          # Push annotated tags that point to pushed commits
 [rerere]
-	enabled = true
+	enabled = true             # Remember conflict resolutions for reuse
 [alias]
+	# ── Staging ──
 	a		= add
 	aa		= add .
 	ap		= add -p
-	arc		= !git archive --format=zip --prefix="$(basename $PWD)/" HEAD -o "$(basename $PWD)-`git rev-parse --short HEAD`.zip"
 	au		= add -u
+
+	# ── Archive (zip/tar snapshots of HEAD) ──
+	; echo "$(git show -s --format=%cd --date=format:%Y%m%d HEAD)-$(git rev-parse --short HEAD)"
+	arc		= !git archive --format=zip --prefix="$(basename $PWD)/" HEAD -o "$(basename $PWD)-`git rev-parse --short HEAD`.zip"
+	arctar	= !git archive --format=tar.gz --prefix="$(basename $PWD)/" HEAD -o "$(basename $PWD)-`git rev-parse --short HEAD`.tar.gz"
+	arcr	= !git archive --format=zip --prefix="$(basename $PWD)/" HEAD -o "$(basename $PWD)-$(git show -s --format=%cd --date=format:%Y%m%d HEAD)-$(git rev-parse --short HEAD).zip"
+	arcnop	= !git archive --format=zip HEAD -o "$(basename $PWD)-`git rev-parse --short HEAD`.ipa"
+
+	# ── Branch / Checkout ──
 	amr		= am --resolved
 	b		= branch
 	cb		= checkout -b
 	co		= checkout
-	cp		= cherry-pick
-	ci		= commit --gpg-sign
-	cia		= commit --gpg-sign --amend
-	cim		= commit --gpg-sign -m
+	chp		= cherry-pick
 	ch		= cherry -v
-	d		= diff -b
-	dw		= diff -b --word-diff=color
-	dc		= diff -b --cached
-	dcw		= diff -b --cached --word-diff=color
+
+	# ── Bisect ──
+	bs		= bisect
+	bss		= bisect start
+	bsb		= bisect bad
+	bsg		= bisect good
+	bsr		= bisect reset
+
+	# ── Commit ──
+	# --no-verify Skip pre-commit / commit-msg hooks to avoid local commits being slowed by lint, formatters, etc.
+	ci		= commit --gpg-sign --no-verify
+	cii		= commit --gpg-sign -m 'Initial commit'
+	cia		= !GIT_COMMITTER_DATE="$(git show -s --format=%aI HEAD)" git commit --gpg-sign --no-verify --amend --no-edit
+	ciae	= !GIT_COMMITTER_DATE="$(git show -s --format=%aI HEAD)" git commit --gpg-sign --no-verify --amend
+	cig		= commit --gpg-sign --no-verify --trailer 'Co-authored-by: Gemini <gemini@google.com>'
+	cim		= commit --gpg-sign --no-verify -m
+
+	# ── Diff ──
+	# d/dc: default (delta rendered)
+	# db/dcb: ignore whitespace (-b) for legacy projects
+	# dr/dcr: delta without syntax highlighting
+	# dw/dcw: git native word-diff, bypasses delta for compact inline view
+	# dm: difftastic (AST-based structural diff)
+	d		= diff
+	db		= -c core.pager=less diff -b
+	dr		= -c delta.features=raw diff
+	dw		= diff --word-diff=color
+	dc		= diff --cached
+	dcb		= -c core.pager=less diff -b --cached
+	dcr		= -c delta.features=raw diff --cached
+	dcw		= diff --cached --word-diff=color
+	dm		= -c diff.external=difft diff
 	ds		= diff -b --stat
 	dt		= difftool
 	dct		= difftool --cached
+
+	# ── HEAD shortcuts (avoid typing HEAD~N) ──
+	# git h 3 → show HEAD~3, git h → show HEAD~1
+	h		= "!f() { git show HEAD~${1:-1}; }; f"
+	# git hd 3 1 → diff HEAD~3..HEAD~1, git hd 3 → diff HEAD~3..HEAD
+	hd		= "!f() { git diff HEAD~$1..${2:+HEAD~$2}${2:-HEAD}; }; f"
+
+	# ── Log ──
 	l		= log -p
 	lg		= log --oneline --decorate --graph
-	lgg		= log --color --graph --pretty=format:'%C(yellow)%h%Creset -%C(red)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit
+	lgg		= log --color --graph --pretty=format:'%C(yellow)%h%Creset -%C(red)%d%Creset %s %Cgreen(%ch) %C(bold blue)<%an>%Creset' --abbrev-commit
 	log		= log --show-signature
+
+	# ── Merge / Rebase ──
 	mt		= mergetool -y
-	pr		= pull-request
-	rb		= rebase
-	rbi		= rebase -i
+	rb		= rebase --gpg-sign
+	rbd		= rebase --gpg-sign --committer-date-is-author-date
+	rbi		= rebase --gpg-sign -i
+	rbid	= rebase --gpg-sign -i --committer-date-is-author-date
 	rbc		= rebase --continue
 	rba		= rebase --abort
+
+	# ── Push ──
+	pusho	= !git push --set-upstream origin $(git branch --show-current)
+
+	# ── Reset ──
 	rt		= reset
 	rth		= reset --hard
+	rthsm	= reset --hard --recurse-submodules
+
+	# ── Status / Show ──
 	s		= status
+	set		= !git add . && git commit -m 'Initial commit'
 	show	= show -b
 	showw	= show -b --word-diff=color
+	shows	= show --show-signature
+
+	# ── Submodule ──
 	sm		= submodule
+
+	# ── Stash (stp/sts + number for specific stash entries) ──
 	st		= stash
+	sti		= stash push --keep-index
 	stl		= stash list
 	stp		= stash pop
 	sts		= stash show -p
@@ -76,30 +173,48 @@
 	sts3	= stash show stash@{3} -p
 	sts4	= stash show stash@{4} -p
 	sts5	= stash show stash@{5} -p
+
+	# ── Worktree ──
+	ws		= worktree
+	wsl		= worktree list
+	wsa		= worktree add
+	wsr		= worktree remove
+
+	# ── Tag ──
 	tagme	= !git tag "v$(git show --no-patch --date=format:%Y%m%d --pretty=format:'%cd-%h' HEAD)"
-	# summary of what you're going to push
-	ps		= log --pretty=oneline origin..master
-	# like "git log", but include the diffs
-	w		= whatchanged
-	wc		= whatchanged -p
-	edit-modified   = "!f() { git ls-files -m | awk '{print $NF}' | sort -u; }; gvim -p `f`"
-	edit-unmerged	= "!f() { git ls-files -u | awk '{print $NF}' | sort -u; }; $EDITOR `f`"
+
+	# ── Inspection ──
+	ps		= log --pretty=oneline origin..master  # Preview what will be pushed
+	w		= log --raw --no-merges
+	wc		= log --raw --no-merges -p
+	today	= "!git log --since=\"12 hours ago\" --author=\"`git config --get user.name`\" --reverse --pretty=format:%s"
+	# shr: the commit object as git stores it (tree, parent, author, committer),
+	# like `cat-file -p` but with readable dates. --pretty=raw keeps the epoch.
+	shr		= "!f() { git show -s --date=format:'%Y-%m-%d %H:%M:%S %z' --format='commit %H%ntree %T%nparent %P%nauthor %an <%ae> %ad%ncommitter %cn <%ce> %cd%n%n%B' \"${1:-HEAD}\"; }; f"
+
+	# ── Open files in editor ──
+	edit-modified   = "!f() { git ls-files -m | awk '{print $NF}' | sort -u; }; vimr --cur-env -p `f`"
+	edit-unmerged	= "!f() { git ls-files -u | awk '{print $NF}' | sort -u; }; vimr --cur-env -p `f`"
 	add-unmerged	= "!f() { git ls-files -u | awk '{print $NF}' | sort -u; }; git add `f`"
-	today = !git log --since=\"12 hours ago\" --author=\"`git config --get user.name`\" --reverse --pretty=format:%s
+
+	# ── Git Flow (legacy) ──
 	f		= flow feature
 	frb		= flow feature rebase
 	fco		= flow feature checkout
+
+	# ── Legit (legacy) ──
 	cloner  = clone --recursive
-	switch = !legit switch \"$@\"
-	branches = !legit branches
-	sprout = !legit sprout \"$@\"
-	unpublish = !legit unpublish \"$@\"
-	harvest = !legit harvest \"$@\"
-	sync = !legit sync \"$@\"
-	publish = !legit publish \"$@\"
-	graft = !legit graft \"$@\"
+	branches = !/usr/local/bin/legit branches
+	; sprout = !legit sprout \"$@\"
+	unpublish = !/usr/local/bin/legit unpublish
+	; harvest = !legit harvest \"$@\"
+	publish = !/usr/local/bin/legit publish
+	sync = !/usr/local/bin/legit sync
+	undo = !/usr/local/bin/legit undo
+	; graft = !legit graft \"$@\"
 [credential]
 	helper = osxkeychain
+# Legacy filter configs (media/hawser are predecessors of LFS)
 [filter "media"]
 	required = true
 	clean = git media clean %f
@@ -109,8 +224,17 @@
 	smudge = git hawser smudge %f
 	required = true
 [filter "lfs"]
-	clean = git lfs clean %f
-	smudge = git lfs smudge %f
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
 	required = true
 [tar "tar.xz"]
 	command = xz -c
+[init]
+	defaultBranch = master
+[commit]
+	gpgsign = true
+[gpg]
+	program = /opt/homebrew/bin/gpg
+[submodule]
+	recurse = true
