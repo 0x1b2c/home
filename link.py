@@ -141,7 +141,18 @@ def paint(text, code):
 # interleaving two layouts. A tag longer than the field pushes its own row
 # right rather than widening every other one.
 TAG_WIDTH = 21
-PATH_WIDTH = 24
+PATH_WIDTH = 26
+
+
+def home_display(rel_path):
+    """How a $HOME-side path is shown: the path the finding is actually about.
+
+    The walk enumerates the repository, so its relative paths read as though
+    the trouble were in the repository. Nearly every finding is about the
+    other side, and a bare .hammerspoon leaves the reader guessing which of
+    the two it means.
+    """
+    return f"~/{rel_path}"
 
 
 def row(tag, code, rel_path, trailing):
@@ -270,6 +281,9 @@ def report(tag, rel_path, detail, fix, pending=None, klass=None):
     --fix carries out, and does not sit yellow among the work left to do.
     """
     code, default_klass = STYLE[tag]
+    # The two REPO tags are the only findings about the repository side, so
+    # they keep the plain relative path; everything else is shown as ~/ ...
+    shown = rel_path if default_klass is REPO else home_display(rel_path)
     if klass is None:
         klass = default_klass
     elif klass is CREATE and default_klass is not CREATE:
@@ -295,7 +309,7 @@ def report(tag, rel_path, detail, fix, pending=None, klass=None):
         else:
             counts["skipped"] += 1
 
-    print(row(tag, code, rel_path, "  ".join(parts)))
+    print(row(tag, code, shown, "  ".join(parts)))
     return acting
 
 
@@ -317,7 +331,7 @@ def verified(tag, rel_path, detail):
     """
     counts["verified"] += 1
     if VERBOSE:
-        print(row(tag, "34", rel_path, paint(detail, "2")))
+        print(row(tag, "34", home_display(rel_path), paint(detail, "2")))
 
 
 def excluded(rel_path, why):
@@ -325,10 +339,14 @@ def excluded(rel_path, why):
 
     Never examined, so it stays out of the examined total; printed only under
     --verbose, where "why was this one not touched" is the usual question.
+
+    The path is shown without the ~/ prefix the other rows carry. What is
+    excluded is the repository entry; the point of excluding it is that no
+    counterpart in $HOME is ever created, so naming one would be a fiction.
     """
     counts["excluded"] += 1
     if VERBOSE:
-        print(row("excluded", "2", rel_path, paint(why, "2")))
+        print(row("excluded", "2", str(rel_path), paint(why, "2")))
 
 
 # How much of the local seed to read beyond the repository copy: enough for the
@@ -532,7 +550,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
         if item.name in EXCLUDES or str(rel_path) in EXCLUDES:
             # Not descended into either: an excluded directory is excluded
             # whole, so its contents are never enumerated.
-            excluded(rel_path, "matched EXCLUDES")
+            excluded(rel_path, "not managed by this script")
             continue
 
         counts["examined"] += 1
@@ -559,7 +577,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
             report(
                 "broken source",
                 rel_path,
-                "the repository entry points at nothing; fix it there",
+                "points at nothing; fix it in the repository",
                 fix,
             )
             continue
@@ -576,8 +594,8 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                     if report(
                         "seed is a link",
                         rel_path,
-                        "a link into the repository, so it holds nothing of "
-                        "its own; --fix replaces it with a real copy",
+                        "a link into the repository, so nothing of yours is "
+                        "here; --fix replaces it with a real file",
                         fix,
                         pending,
                         klass=CREATE,
@@ -594,7 +612,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                         "seed is a link",
                         rel_path,
                         f"points at {actual}, outside the repository, so it is "
-                        "left alone; a seed must be a real local file",
+                        "left alone; this has to be a real file of your own",
                         fix,
                         pending,
                     )
@@ -609,7 +627,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "seed is a directory",
                     rel_path,
-                    "a seed must be a file; move the directory aside",
+                    "this has to be a real file; move the directory aside",
                     fix,
                     pending,
                 )
@@ -633,21 +651,21 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                     report(
                         "seed unreadable",
                         rel_path,
-                        f"cannot be read, so it is left alone: {e}",
+                        f"could not be read, so it is left alone: {e}",
                         fix,
                         pending,
                     )
                 else:
                     if seed_head_matches(repo_bytes, head):
                         verified(
-                            "seed verified", rel_path, "repository copy is the head"
+                            "seed verified", rel_path, "the repository's version is still its start"
                         )
                     else:
                         report(
                             "seed diverged",
                             rel_path,
-                            "the repository copy is no longer the head of this "
-                            "file; reconcile it yourself",
+                            "the repository's version is no longer the start of "
+                            "this file; reconcile them yourself",
                             fix,
                             pending,
                         )
@@ -659,7 +677,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "seed is not a file",
                     rel_path,
-                    "a seed must be a real file; move this aside",
+                    "has to be a real file; move whatever is here aside",
                     fix,
                     pending,
                 )
@@ -676,8 +694,9 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "container source is not a directory",
                     rel_path,
-                    "listed in CONTAINERS but not a directory here; "
-                    "make it one in the repository, or drop it from CONTAINERS",
+                    "a directory is expected here so its contents can be "
+                    "linked one by one; make it one in the repository, or edit "
+                    "link.py to stop treating it that way",
                     fix,
                 )
                 continue
@@ -700,8 +719,8 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                     if report(
                         "container is a link",
                         rel_path,
-                        "a link into the repository, so it holds nothing of "
-                        "its own; --fix replaces it with a real directory",
+                        "a link into the repository, so nothing of yours is "
+                        "here; --fix replaces it with a real directory",
                         fix,
                         pending,
                         klass=CREATE,
@@ -735,7 +754,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                         "container is a link",
                         rel_path,
                         f"points at {actual}, outside the repository, so it is "
-                        "left alone; a container must be a real directory",
+                        "left alone; this has to be a real directory",
                         fix,
                         pending,
                     )
@@ -780,7 +799,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                     report(
                         "container is not private",
                         rel_path,
-                        f"mode {mode:04o}, should be 0700; chmod it yourself",
+                        f"mode {mode:04o}, which other accounts can read; chmod it to 0700 yourself",
                         fix,
                         pending,
                     )
@@ -795,7 +814,8 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "container is a file",
                     rel_path,
-                    "should be a real directory; move the file aside",
+                    "has to be a real directory so it can hold both "
+                    "repository links and your own files; move the file aside",
                     fix,
                     pending,
                 )
@@ -805,7 +825,7 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "container is not a directory",
                     rel_path,
-                    "neither a file nor a directory is in the way; move it aside",
+                    "something that is neither a file nor a directory is here; move it aside",
                     fix,
                     pending,
                 )
@@ -891,12 +911,15 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
         # something; either way only you know what it is worth. For a directory
         # there is a second answer worth naming, since listing it in CONTAINERS
         # keeps both sides instead of choosing between them.
-        advice = (
-            "add it to CONTAINERS to link its children instead, or move it aside"
+        detail = (
+            "a directory of yours; this wanted to link the repository's copy "
+            "here. Move it aside, or edit link.py to link its contents one by "
+            "one and keep both"
             if home_target.is_dir()
-            else "move it aside and run again"
+            else "already here; this wanted to link the repository's copy here. "
+            "Move it aside and run again"
         )
-        report("in the way", rel_path, f"already here; {advice}", fix, pending)
+        report("in the way", rel_path, detail, fix, pending)
 
 
 def scan_dirs():
@@ -974,7 +997,7 @@ def scan_orphans(fix):
                 scan_counts["verified"] += 1
                 if VERBOSE:
                     header()
-                    print(row("link verified", "34", rel_path,
+                    print(row("link verified", "34", home_display(rel_path),
                               paint(f"symlink -> {actual}", "2")))
                 continue
 
@@ -985,7 +1008,7 @@ def scan_orphans(fix):
             if not acting:
                 parts.append(paint("Needs --fix.", "2"))
                 scan_counts["to_remove"] += 1
-            print(row("orphaned link", "32", rel_path, "  ".join(parts)))
+            print(row("orphaned link", "32", home_display(rel_path), "  ".join(parts)))
             if not acting:
                 continue
             try:
@@ -1020,9 +1043,9 @@ def scan_orphans(fix):
         header()
         scan_counts["left_empty"] += 1
         print(row(
-            "container left empty", "31", rel_path,
-            "(the repository no longer has this path and the directory is left "
-            "empty; remove it yourself if you want it gone)",
+            "container left empty", "31", home_display(rel_path),
+            "(the repository no longer has this path, and nothing is left in "
+            "the directory; remove it yourself if you want it gone)",
         ))
 
 
