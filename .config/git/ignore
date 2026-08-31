@@ -25,4 +25,7 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+tags
+doc/tags-*
+*.dcu
 **/.claude/settings.local.json

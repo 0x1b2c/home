@@ -20,7 +20,6 @@
 	autocrlf = input      # Convert CRLF→LF on commit, keep LF on checkout
 	safecrlf = warn
 	quotepath = off        # Show non-ASCII filenames as-is (e.g. CJK)
-	excludesfile = ~/.gitignore
 	pager = delta          # Use delta for all paged output (diff, log, show, etc.)
 	fsync = none
 [init]
