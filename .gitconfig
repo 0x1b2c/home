@@ -1,3 +1,20 @@
+# ── Identity ────────────────────────────────────────────────────────────────
+[user]
+	email = interface@1b2c.org
+	name = 1b2c
+	signingKey = 876DF69CF7BD9DA6807FF56C0B10A078285066FD
+[includeIf "gitdir:~/work/"]
+	path = ~/work/.gitconfig   # Separate config (name/email) for work repos
+[github]
+	user = 0x1b2c
+[credential]
+	helper = osxkeychain
+[commit]
+	gpgsign = true
+[gpg]
+	program = /opt/homebrew/bin/gpg
+
+# ── Core ────────────────────────────────────────────────────────────────────
 [core]
 	; eol = lf
 	autocrlf = input      # Convert CRLF→LF on commit, keep LF on checkout
@@ -6,6 +23,23 @@
 	excludesfile = ~/.gitignore
 	pager = delta          # Use delta for all paged output (diff, log, show, etc.)
 	fsync = none
+[init]
+	defaultBranch = master
+[submodule]
+	recurse = true
+
+# ── Pager and colour ────────────────────────────────────────────────────────
+[color]
+	ui = true
+[color "diff"]
+	meta = 11
+	frag = magenta bold
+	commit = yellow bold
+	old = "#ff5555"
+	new = "#50fa7b"
+	whitespace = red reverse
+[pager]
+	difftool = true
 [interactive]
 	diffFilter = delta --color-only  # Delta rendering for `git add -p`
 [delta]
@@ -17,50 +51,50 @@
 	# so swapped/moved lines are visually different from plain add/remove
 	map-styles = "bold purple => syntax #330033, bold cyan => syntax #003333"
 
-[github]
-	user = 0x1b2c
-[branch]
-	autosetuprebase = always  # New tracking branches default to rebase on pull
-[color]
-	ui = true
-[color "diff"]
-	meta = 11
-	frag = magenta bold
-	commit = yellow bold
-	old = "#ff5555"
-	fsync = none
-	new = "#50fa7b"
-	whitespace = red reverse
-
+# ── Diff and merge ──────────────────────────────────────────────────────────
 [diff]
 	colorMoved = default       # Highlight moved lines in diff (purple=source, cyan=destination)
 	renames = copies           # Detect renames and copies
 	; tool	= difftastic disabled due to delta
-	compactionHeuristic = true # Produce more readable diffs by shifting hunk boundaries
 [difftool]
 	prompt = false
 [difftool "difftastic"]
     cmd = difft "$LOCAL" "$REMOTE"
-[pager]
-	difftool = true
-[user]
-	email = interface@1b2c.org
-	name = 1b2c
-	signingKey = 876DF69CF7BD9DA6807FF56C0B10A078285066FD
-[includeIf "gitdir:~/work/"]
-	path = ~/work/.gitconfig   # Separate config (name/email) for work repos
 [merge]
 	summary = true
 	tool	= gvimdiff
-[rebase]
-	updateRefs = true
-	instructionFormat = %as %an %s   # Show author date in the interactive todo list
+
+# ── Branch, push, rebase ────────────────────────────────────────────────────
+[branch]
+	autosetuprebase = always  # New tracking branches default to rebase on pull
 [push]
 	default = simple
 	autoSetupRemote = true     # `git push` auto-creates remote tracking branch
 	followTags = true          # Push annotated tags that point to pushed commits
+[rebase]
+	updateRefs = true
+	instructionFormat = %as %an %s   # Show author date in the interactive todo list
 [rerere]
 	enabled = true             # Remember conflict resolutions for reuse
+
+# ── Filters (media and hawser are the predecessors of LFS) ──────────────────
+[filter "media"]
+	required = true
+	clean = git media clean %f
+	smudge = git media smudge %f
+[filter "hawser"]
+	clean = git hawser clean %f
+	smudge = git hawser smudge %f
+	required = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[tar "tar.xz"]
+	command = xz -c
+
+# ── Aliases ─────────────────────────────────────────────────────────────────
 [alias]
 	# ── Staging ──
 	a		= add
@@ -212,29 +246,3 @@
 	sync = !/usr/local/bin/legit sync
 	undo = !/usr/local/bin/legit undo
 	; graft = !legit graft \"$@\"
-[credential]
-	helper = osxkeychain
-# Legacy filter configs (media/hawser are predecessors of LFS)
-[filter "media"]
-	required = true
-	clean = git media clean %f
-	smudge = git media smudge %f
-[filter "hawser"]
-	clean = git hawser clean %f
-	smudge = git hawser smudge %f
-	required = true
-[filter "lfs"]
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
-	process = git-lfs filter-process
-	required = true
-[tar "tar.xz"]
-	command = xz -c
-[init]
-	defaultBranch = master
-[commit]
-	gpgsign = true
-[gpg]
-	program = /opt/homebrew/bin/gpg
-[submodule]
-	recurse = true
