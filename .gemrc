@@ -1,1 +1,11 @@
-gem: --no-ri --no-rdoc
+---
+# RubyGems defaults this to true since 3.0, which buries the error message
+# under a full Ruby backtrace.
+:backtrace: false
+# Pin the official source, so anything adding a mirror shows up as a conflict
+# here rather than taking effect silently.
+:sources:
+  - https://rubygems.org/
+gem: "--no-document"
+
+# vim: set ft=yaml:
