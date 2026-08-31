@@ -64,6 +64,8 @@
 # ── Branch, push, rebase ────────────────────────────────────────────────────
 [branch]
 	autosetuprebase = always  # New tracking branches default to rebase on pull
+[pull]
+	rebase = true
 [push]
 	default = simple
 	autoSetupRemote = true     # `git push` auto-creates remote tracking branch
