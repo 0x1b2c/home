@@ -1,0 +1,28 @@
+#!/bin/sh
+# Add the Forgejo push URL alongside origin's own, so `git push` reaches both.
+# Invoked as `git mirror`: git runs any git-<name> it finds on PATH.
+#
+# The mirror's address stays out of this public repo. Set the whole prefix in
+# ~/.private_rc, separator included, and the repo name is appended to it:
+#     export GIT_MIRROR_PREFIX='git@example.org:someone/'
+# Keeping it whole rather than splitting into host and user means the script
+# assumes nothing about the URL shape; ssh://host:2222/someone/ works too.
+
+set -eu
+
+: "${GIT_MIRROR_PREFIX:?not set; see ~/.private_rc}"
+
+origin=$(git remote get-url origin)
+mirror="$GIT_MIRROR_PREFIX${origin##*/}"
+
+if git remote get-url --push --all origin | grep -qxF "$mirror"; then
+    echo 'origin push URLs (unchanged):'
+else
+    # Setting any explicit push URL discards the implicit one, so origin's own
+    # URL has to be re-added here or pushes would stop reaching it.
+    git remote set-url --add --push origin "$origin"
+    git remote set-url --add --push origin "$mirror"
+    echo 'origin push URLs:'
+fi
+
+git remote get-url --push --all origin | sed 's/^/  /'
