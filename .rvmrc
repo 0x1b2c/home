@@ -1,5 +1,0 @@
-rvm_pretty_print_flag=1
-rvm_trust_rvmrcs_flag=1
-rvm_auto_reload_flag=1
-rvm_configure_env=(CFLAGS='-march=native -O3 -pipe -fomit-frame-pointer')
-rvm_ignore_dotfiles=yes

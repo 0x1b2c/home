@@ -1,5 +1,0 @@
---color-match=bold red
---ignore-dir=coverage
---ignore-dir=doc
---ignore-dir=tmp
---type-add=ruby=.haml

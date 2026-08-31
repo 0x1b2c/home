@@ -11,8 +11,6 @@
 	helper = osxkeychain
 [commit]
 	gpgsign = true
-[gpg]
-	program = /opt/homebrew/bin/gpg
 
 # ── Core ────────────────────────────────────────────────────────────────────
 [core]
@@ -76,15 +74,7 @@
 [rerere]
 	enabled = true             # Remember conflict resolutions for reuse
 
-# ── Filters (media and hawser are the predecessors of LFS) ──────────────────
-[filter "media"]
-	required = true
-	clean = git media clean %f
-	smudge = git media smudge %f
-[filter "hawser"]
-	clean = git hawser clean %f
-	smudge = git hawser smudge %f
-	required = true
+# ── Filters and archive formats ─────────────────────────────────────────────
 [filter "lfs"]
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
@@ -229,19 +219,3 @@
 	edit-modified   = "!f() { git ls-files -m | awk '{print $NF}' | sort -u; }; vimr --cur-env -p `f`"
 	edit-unmerged	= "!f() { git ls-files -u | awk '{print $NF}' | sort -u; }; vimr --cur-env -p `f`"
 	add-unmerged	= "!f() { git ls-files -u | awk '{print $NF}' | sort -u; }; git add `f`"
-
-	# ── Git Flow (legacy) ──
-	f		= flow feature
-	frb		= flow feature rebase
-	fco		= flow feature checkout
-
-	# ── Legit (legacy) ──
-	cloner  = clone --recursive
-	branches = !/usr/local/bin/legit branches
-	; sprout = !legit sprout \"$@\"
-	unpublish = !/usr/local/bin/legit unpublish
-	; harvest = !legit harvest \"$@\"
-	publish = !/usr/local/bin/legit publish
-	sync = !/usr/local/bin/legit sync
-	undo = !/usr/local/bin/legit undo
-	; graft = !legit graft \"$@\"
