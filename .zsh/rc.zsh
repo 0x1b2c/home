@@ -65,9 +65,12 @@ zle -N down-session-history
 
 # Arrow keys send \e[A in normal cursor mode and \eOA in application mode, and
 # which one arrives depends on the terminal, so bind both forms.
+# A terminal whose terminfo entry is missing on this machine reports these as
+# empty, and bindkey then fails loudly on every shell. The literal forms below
+# cover the usual case anyway, so skipping these costs nothing.
 zmodload zsh/terminfo
-bindkey -M viins "$terminfo[kcuu1]" up-session-history
-bindkey -M viins "$terminfo[kcud1]" down-session-history
+[[ -n $terminfo[kcuu1] ]] && bindkey -M viins "$terminfo[kcuu1]" up-session-history
+[[ -n $terminfo[kcud1] ]] && bindkey -M viins "$terminfo[kcud1]" down-session-history
 bindkey -M viins '^[[A'             up-session-history
 bindkey -M viins '^[[B'             down-session-history
 bindkey -M vicmd '^[[A'             up-session-history
@@ -193,9 +196,13 @@ function set-term-title-preexec() {
   print -rn -- $'\e]0;'${(V)1}$'\a' >$TTY
 }
 autoload -Uz add-zsh-hook
-add-zsh-hook preexec set-term-title-preexec
-add-zsh-hook precmd set-term-title-precmd
-set-term-title-precmd
+# $TTY is empty without a controlling terminal, and the redirection below then
+# fails on every prompt. Nothing has a title to set in that case either.
+if [[ -n $TTY ]]; then
+    add-zsh-hook preexec set-term-title-preexec
+    add-zsh-hook precmd set-term-title-precmd
+    set-term-title-precmd
+fi
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # Session --------------------------------------------------------------------------------------------------------- {{{1

@@ -85,18 +85,30 @@ add-zsh-hook precmd  _cmd_duration_precmd
 #
 # No title escape here: rc.zsh sets the terminal title from its own precmd hook,
 # which works whichever prompt is in use.
-# The leading blank line is what starship does by default: without it the output
-# of the previous command runs straight into the prompt.
-PROMPT_LINE1=$'\n'"%{$fg[cyan]%}%n%{$fg[magenta]%}@%{$fg[blue]%}%M %{$fg[green]%}%~%{$reset_color%}\$(git_prompt_info)\${CMD_DURATION}"
+# The blank line above the prompt is what starship does by default: without it
+# the output of the previous command runs straight into the prompt. It is
+# printed by a precmd hook, not held inside PROMPT: PROMPT is redrawn on every
+# keymap change, and a newline inside it is re-emitted by each redraw.
+PROMPT_LINE1="%{$fg[cyan]%}%n%{$fg[magenta]%}@%{$fg[blue]%}%M %{$fg[green]%}%~%{$reset_color%}\$(git_prompt_info)\${CMD_DURATION}"
 PROMPT_LINE2="%{$fg[red]%}%#%{$reset_color%} YUKI.N> "
 PROMPT="$PROMPT_LINE1
 $PROMPT_LINE2"
+
+autoload -Uz add-zsh-hook
+_blank_line_before_prompt() { print "" }
+add-zsh-hook precmd _blank_line_before_prompt
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # Vi mode indicator ----------------------------------------------------------------------------------------------- {{{1
 #
-# Printed one line below the cursor and restored, so it sits at the right of the
-# second prompt line without being part of it.
+# Printed on the line below the prompt and the cursor put back, so it sits under
+# where you type without being part of the prompt.
+#
+# PROMPT is rebuilt and redrawn on every keymap change, so nothing in it may
+# leave output behind: a literal newline inside PROMPT_LINE1 is re-emitted by
+# each redraw and walks the display down the screen a line at a time. The blank
+# line above the prompt is produced by a precmd hook instead, which runs once
+# per prompt rather than once per redraw.
 function zle-line-init zle-line-finish zle-keymap-select {
     local down_sc=$terminfo[cud1]$terminfo[cuu1]$terminfo[sc]$terminfo[cud1]
     local indicator="${${KEYMAP/vicmd/"%F{red}-- NORMAL --%f"}/(main|viins)/"%F{green}-- INSERT --%f"}"
@@ -108,6 +120,7 @@ function zle-line-init zle-line-finish zle-keymap-select {
 }
 
 zmodload zsh/terminfo
+
 zle -N zle-line-init
 zle -N zle-line-finish
 zle -N zle-keymap-select
