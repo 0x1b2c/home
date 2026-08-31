@@ -1,0 +1,103 @@
+require:
+  - rubocop-performance
+  - rubocop-rails
+  - rubocop-rspec
+
+AllCops:
+  DisplayCopNames: true
+  DisplayStyleGuide: true
+  NewCops: enable
+  TargetRubyVersion: 3.0
+  Exclude:
+    - 'bin/*'
+    - db/schema.rb
+    - 'node_modules/**/*'
+    - 'tmp/**/*'
+    - 'vendor/**/*'
+
+Layout/HashAlignment:
+  EnforcedColonStyle:
+    - table
+    - key
+  EnforcedHashRocketStyle:
+    - table
+    - key
+
+Layout/LineLength:
+  Exclude:
+    - 'config/initializers/content_security_policy.rb'
+
+Layout/SpaceAroundEqualsInParameterDefault:
+  EnforcedStyle: no_space
+
+Metrics/AbcSize:
+  Max: 20
+  Exclude:
+    - 'test/**/*'
+
+Metrics/BlockLength:
+  Exclude:
+    - 'config/**/*'
+    - 'test/**/*'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'test/**/*'
+
+Metrics/MethodLength:
+  Max: 18
+  Exclude:
+    - 'db/migrate/*'
+    - 'test/**/*'
+
+Naming/MemoizedInstanceVariableName:
+  EnforcedStyleForLeadingUnderscores: optional
+
+Naming/VariableNumber:
+  Enabled: false
+
+Performance/Casecmp:
+  Enabled: false
+
+Rails/ApplicationRecord:
+  Exclude:
+    - 'db/migrate/**'
+
+Rails/RakeEnvironment:
+  Enabled: false
+
+Rails/RefuteMethods:
+  Enabled: false
+
+Rails/Validation:
+  Enabled: false
+
+Style/BarePercentLiterals:
+  EnforcedStyle: percent_q
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+Style/Documentation:
+  Enabled: false
+
+Style/DoubleNegation:
+  Enabled: false
+
+Style/EmptyMethod:
+  Enabled: false
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Style/NumericPredicate:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Style/TrivialAccessors:
+  AllowPredicates: true

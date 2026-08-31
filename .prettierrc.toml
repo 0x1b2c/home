@@ -1,0 +1,9 @@
+trailingComma = 'es5'
+semi = false
+singleQuote = true
+printWidth = 100
+arrowParens = 'always'
+
+# [overrides]
+# For pug
+# attributeSeparator = 'always'
