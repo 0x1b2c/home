@@ -145,17 +145,17 @@ bind ^] paste [.]
 # default windows
 #
 
-screen 0
-screen 1
-screen 2
-screen 3
-screen 4
-screen 5
-screen 6
-screen 7
-screen 8 sudo su
-screen 9 sudo su
-select 1
+# screen 0
+# screen 1
+# screen 2
+# screen 3
+# screen 4
+# screen 5
+# screen 6
+# screen 7
+# screen 8 sudo su
+# screen 9 sudo su
+# select 1
 
 caption always "%3n %t%? @%u%?%? [%h]%?%= %Y-%m-%d %c"
 hardstatus alwayslastline "%Lw"
