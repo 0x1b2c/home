@@ -111,6 +111,17 @@ zmodload zsh/terminfo
 zle -N zle-line-init
 zle -N zle-line-finish
 zle -N zle-keymap-select
+
+# The indicator sits on the line below the prompt, which is where a command's
+# output begins once you press return. Erase that line first, or the output
+# overwrites only as much of the indicator as it is long and the tail of it
+# stays on screen: ls printing "bin/  home/" over "-- INSERT --" leaves a "-".
+#
+# Autoloaded here rather than relied on from an earlier section, so this block
+# does not depend on the order the file is read in.
+autoload -Uz add-zsh-hook
+_erase_indicator_line() { print -rn -- $terminfo[el] }
+add-zsh-hook preexec _erase_indicator_line
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # vim: set fdm=marker fdl=0 tw=120:
