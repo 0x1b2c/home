@@ -2,6 +2,16 @@
 # it runs after macOS's /etc/zprofile path_helper, which reorders PATH and would
 # otherwise push these entries behind the system ones.
 
+# Homebrew, where this machine has it. It has to run before the array below:
+# its shellenv delegates to path_helper, which rewrites the whole PATH, so
+# anything set first would come back reordered behind the system entries. It
+# also puts brew's completions on fpath, which hand-written entries would miss.
+for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew \
+             /home/linuxbrew/.linuxbrew/bin/brew; do
+    [[ -x $_brew ]] && { eval "$($_brew shellenv)"; break }
+done
+unset _brew
+
 # Root directories that the entries below are derived from, and that the tools
 # themselves read.
 export ANDROID_HOME="$HOME/android-sdk"
