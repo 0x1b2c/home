@@ -1,16 +1,26 @@
 #!/usr/bin/env python3
 """Keep the dotfile symlinks in $HOME pointing at this repository.
 
-The script only ever creates what is absent. It never moves, deletes, renames
-or overwrites anything already in $HOME: getting that right under every partial
-failure, interruption and filesystem boundary turned out to cost far more than
-it saved, and the fallback — you move the thing aside yourself — is a single
-command you can see the result of.
+The script only ever creates what is absent, with one exception: it may remove
+a symlink whose target lies inside this repository, because such a link holds
+no content of its own: the content is in the repository, and unlinking it
+loses nothing. Nothing else is ever touched. No regular file, no directory and
+no symlink pointing anywhere outside the repository is moved, deleted, renamed,
+overwritten or chmodded: getting that right under every partial failure,
+interruption and filesystem boundary turned out to cost far more than it saved,
+and the fallback (you move the thing aside yourself) is a single command you
+can see the result of.
 
-So findings come in three kinds. Ones --fix carries out, all of which write to
-a path where nothing exists. Ones it only names, because $HOME already holds
-something at that path. And ones where the fault is in the repository itself,
-with nothing in $HOME to clear. Each of the last two says what to do about it.
+So findings come in three kinds. Ones --fix carries out: writing where nothing
+exists, or clearing a link into the repository first. Ones it only names,
+because $HOME holds something at that path that only you can value. And ones
+where the fault is in the repository itself, with nothing in $HOME to clear.
+Each of the last two says what to do about it.
+
+A second, shorter pass looks the other way down the link, for entries in $HOME
+that point into this repository at something the repository no longer has. The
+forward walk cannot see those: it enumerates the repository, and they are
+exactly the paths the repository stopped having.
 
 An entry that is already as it should be is counted as verified rather than
 passed over in silence, so a run can say how much it checked and not only what
@@ -77,7 +87,7 @@ CONTAINERS = {
 # directly inside the container afterwards, by you or by another program. It
 # does nothing for what this script puts there. A symlink is checked against the
 # file it resolves to, so ~/.ssh/config is exactly as readable as the repository
-# copy behind it -- and this repository is a public one. Anything whose
+# copy behind it, and this repository is a public one. Anything whose
 # confidentiality matters does not belong in it at all.
 PRIVATE_CONTAINERS = {
     ".ssh",
@@ -103,7 +113,7 @@ SEEDS = {
 # This only changes how a link is described, never what happens to it, but a
 # link that already resolves correctly is still named, so keep these specific.
 # A pattern is ignored for any entry whose own correct target contains it,
-# since there it cannot tell a stale link from the right one -- see the check.
+# since there it cannot tell a stale link from the right one. See the check.
 BAD_LINK_PATTERNS = [
     "Dropbox",
 ]
@@ -118,7 +128,7 @@ SRC = Path(__file__).resolve().parent
 
 # Colour is for reading, not for parsing: drop it when stdout is not a
 # terminal, and honour the NO_COLOR convention, which asks for a non-empty
-# value -- NO_COLOR= set to nothing means the same as unset.
+# value: NO_COLOR= set to nothing means the same as unset.
 COLOR = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
 
 
@@ -160,7 +170,10 @@ STYLE = {
     "link missing": ("32", CREATE),  # green
     "container missing": ("32", CREATE),
     "seed missing": ("32", CREATE),
-    # Yellow: a link is in the way, so clearing it costs nothing but the link.
+    # Yellow: a link is in the way. Clearing it costs nothing but the link, so
+    # when it points into the repository these are promoted to CREATE at the
+    # call site and printed green; the class here is the one they keep when it
+    # points somewhere only you can judge.
     "wrong target": ("33", MANUAL),
     "stale link": ("33", MANUAL),
     "seed is a link": ("33", MANUAL),
@@ -212,6 +225,24 @@ counts = {
 # the one they share instead of saying "a container".
 blockers = set()
 
+# Every $HOME path the forward walk reached a decision about, excluded ones
+# included. The reverse scan below skips these: the walk has already said what
+# it thinks of them, and an excluded entry is one this script does not manage
+# from either direction.
+visited = set()
+
+# The reverse scan is counted apart from the walk. Its entries are not in the
+# repository, so they are not among the examined ones and must not enter that
+# accounting. Folding them in would make the parts stop adding up to a total
+# taken over a different set.
+scan_counts = {
+    "to_remove": 0,
+    "removed": 0,
+    "verified": 0,
+    "left_empty": 0,
+    "failed": 0,
+}
+
 # Set from --verbose. It adds output and changes no decision and no count.
 VERBOSE = False
 
@@ -219,7 +250,7 @@ VERBOSE = False
 current = {"entry": None}
 
 
-def report(tag, rel_path, detail, fix, pending=None):
+def report(tag, rel_path, detail, fix, pending=None, klass=None):
     """Print one finding and say whether this run should act on it.
 
     Only findings this run leaves alone are counted here. The ones it acts on
@@ -229,8 +260,20 @@ def report(tag, rel_path, detail, fix, pending=None):
     A MANUAL or REPO finding is never acted on. Each carries its own
     instruction in `detail`, so no flag is suggested for it: there is none that
     would help.
+
+    `klass` overrides the tag's usual class. The three link-shaped findings
+    take either one depending on where the link points: into the repository,
+    where clearing it loses nothing and --fix does so, or outside it, where
+    only you know what it is worth. The colour then follows the class rather
+    than the tag, so a row tells the reader what will happen to it instead of
+    which branch found it; a promoted finding is green like every other thing
+    --fix carries out, and does not sit yellow among the work left to do.
     """
-    code, klass = STYLE[tag]
+    code, default_klass = STYLE[tag]
+    if klass is None:
+        klass = default_klass
+    elif klass is CREATE and default_klass is not CREATE:
+        code = "32"
     acting = klass is CREATE and fix and pending is None
 
     # Assembled before printing, so the whole line goes through row() and
@@ -352,6 +395,51 @@ def print_seed_diff(item, home_target, repo_bytes, head):
         print(f"  {text}" if code is None else paint(f"  {text}", code))
 
 
+def link_target(path):
+    """What a symlink names: the raw text, and it made absolute and normalised.
+
+    Never resolve(): that follows every link in the chain and would judge a
+    link by where it eventually lands rather than by what it names. A link into
+    the repository that the repository then points elsewhere is still a link
+    into the repository, and one that names a path outside it is still outside
+    however that path is later redirected.
+    """
+    actual = os.readlink(path)
+    target = Path(actual)
+    if not target.is_absolute():
+        target = path.parent / target
+    return actual, Path(os.path.normpath(target))
+
+
+def inside_repo(target):
+    """True when an already-normalised path lies at or under SRC.
+
+    Compared by path components, not by string prefix: a sibling directory
+    named home2 starts with the same characters as home and is not inside it.
+    """
+    return target == SRC or SRC in target.parents
+
+
+def remove_repo_link(path):
+    """Unlink a symlink that names a path inside the repository.
+
+    The one thing this script removes, and the reason it is allowed to: such a
+    link carries no content, only a direction, and the thing it points at is in
+    the repository either way.
+
+    Both halves of the precondition are re-established here rather than trusted
+    from the caller's earlier look, since between the two the path could have
+    become something else entirely. os.unlink refuses a directory, so even a
+    check that somehow passed on one cannot take a tree down.
+    """
+    if not os.path.islink(path):
+        raise OSError(f"{path} is no longer a symlink")
+    _, target = link_target(path)
+    if not inside_repo(target):
+        raise OSError(f"{path} no longer points inside {SRC}")
+    os.unlink(path)
+
+
 def is_broken(item):
     """True when the repository entry points at nothing that exists."""
     return item.is_symlink() and not item.exists()
@@ -408,7 +496,7 @@ def copy_seed(item, home_target):
     exists to accommodate may be creating ~/.zshrc in the same window.
 
     0o666 leaves the result to the machine's umask. Copying the repository
-    file's mode instead -- which is what shutil.copy2 does, metadata and all --
+    file's mode instead (which is what shutil.copy2 does, metadata and all)
     carries the umask of whoever cloned the repository into $HOME, and ~/.zshrc
     is executed by every interactive shell.
     """
@@ -420,16 +508,27 @@ def copy_seed(item, home_target):
         os.close(fd)
 
 
-def audit_and_fix(current_dir, fix, pending=None):
+def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
     """Walk one directory of the repository.
 
     `pending` names an ancestor that will still not be a real directory in
     $HOME when this run ends. Its children are listed anyway, so the whole of
     the outstanding work is visible, but nothing under it is acted on: writing
     there would either fail or land inside whatever the ancestor points at.
+
+    `as_absent` carries the other half of that on its own. An audit over a
+    container that is a link into the repository has to preview the children
+    against the empty directory --fix would leave, not against what they look
+    like through a link that is about to go; but they are not blocked, because
+    the same run would clear the link and then handle them. Reading the child's
+    real path here would resolve through the doomed link and find the
+    repository's own files sitting in the way of themselves.
     """
     for item in sorted(current_dir.iterdir()):
         rel_path = item.relative_to(SRC)
+        # Recorded before the exclusion test, so the reverse scan leaves alone
+        # both what this walk handled and what it deliberately did not.
+        visited.add(HOME / rel_path)
         if item.name in EXCLUDES or str(rel_path) in EXCLUDES:
             # Not descended into either: an excluded directory is excluded
             # whole, so its contents are never enumerated.
@@ -444,7 +543,7 @@ def audit_and_fix(current_dir, fix, pending=None):
         # fix would meet: it resolves through the ancestor's symlink, into a
         # directory that stops being there the moment the ancestor becomes a
         # real one. Preview the child as what it will be then, which is absent.
-        if pending is not None:
+        if pending is not None or as_absent:
             is_link = False
             absent = True
         else:
@@ -468,13 +567,37 @@ def audit_and_fix(current_dir, fix, pending=None):
         # Seeds: supply a copy when missing, and leave an existing one alone.
         if str(rel_path) in SEEDS:
             if is_link:
-                report(
-                    "seed is a link",
-                    rel_path,
-                    "should be a real local file; remove the link and run again",
-                    fix,
-                    pending,
-                )
+                # A seed made a link by an older layout. Pointing into the
+                # repository it holds nothing, so --fix clears it and writes
+                # the copy; pointing anywhere else it is an arrangement of
+                # yours and only named.
+                actual, target = link_target(home_target)
+                if inside_repo(target):
+                    if report(
+                        "seed is a link",
+                        rel_path,
+                        "a link into the repository, so it holds nothing of "
+                        "its own; --fix replaces it with a real copy",
+                        fix,
+                        pending,
+                        klass=CREATE,
+                    ):
+                        try:
+                            remove_repo_link(home_target)
+                            copy_seed(item, home_target)
+                        except OSError as e:
+                            failed(f"Replacing the link failed: {e}")
+                        else:
+                            applied("Replaced with a local copy.")
+                else:
+                    report(
+                        "seed is a link",
+                        rel_path,
+                        f"points at {actual}, outside the repository, so it is "
+                        "left alone; a seed must be a real local file",
+                        fix,
+                        pending,
+                    )
             elif absent:
                 if report("seed missing", rel_path, None, fix, pending):
                     try:
@@ -494,7 +617,7 @@ def audit_and_fix(current_dir, fix, pending=None):
                 # Installers only ever append, so the repository copy must
                 # still be the head of the local one. Anything else means the
                 # loader itself has moved on in the repository while this
-                # machine kept the old one -- silent drift, and exactly what a
+                # machine kept the old one. Silent drift, and exactly what a
                 # seed's copy-once rule cannot catch by itself. Reported, never
                 # rewritten: the tail below is this machine's and only you know
                 # how the two should be reconciled.
@@ -564,14 +687,58 @@ def audit_and_fix(current_dir, fix, pending=None):
             # audit predicts what a --fix run does rather than describing a
             # state --fix is about to replace.
             ready = False
+            # Set when this run will replace the container but has not done so
+            # yet, which is only ever an audit: the children exist on disk
+            # through the old link, and the state that matters is the one after.
+            preview_absent = False
             if is_link:
-                report(
-                    "container is a link",
-                    rel_path,
-                    "should be a real directory; remove the link and run again",
-                    fix,
-                    pending,
-                )
+                # Same reasoning as a seed that is a link: into the repository
+                # it holds nothing and --fix clears it, and the directory that
+                # replaces it is then ready for this run's own children.
+                actual, target = link_target(home_target)
+                if inside_repo(target):
+                    if report(
+                        "container is a link",
+                        rel_path,
+                        "a link into the repository, so it holds nothing of "
+                        "its own; --fix replaces it with a real directory",
+                        fix,
+                        pending,
+                        klass=CREATE,
+                    ):
+                        try:
+                            remove_repo_link(home_target)
+                            make_container(home_target, rel_path)
+                        except OSError as e:
+                            failed(f"Replacing the link failed: {e}")
+                        else:
+                            applied("Replaced with a directory.")
+                            ready = True
+                            try:
+                                tighten_private(home_target, rel_path)
+                            except OSError as e:
+                                print(
+                                    paint(
+                                        f"  Created, but its mode could not be "
+                                        f"narrowed to 0700: {e}",
+                                        "1;31",
+                                    )
+                                )
+                    else:
+                        # --fix would have cleared it, so an audit previews the
+                        # children against the empty directory that would be
+                        # here, rather than through the link still standing.
+                        ready = pending is None
+                        preview_absent = ready
+                else:
+                    report(
+                        "container is a link",
+                        rel_path,
+                        f"points at {actual}, outside the repository, so it is "
+                        "left alone; a container must be a real directory",
+                        fix,
+                        pending,
+                    )
             elif absent:
                 if report("container missing", rel_path, None, fix, pending):
                     try:
@@ -581,7 +748,7 @@ def audit_and_fix(current_dir, fix, pending=None):
                     else:
                         # Past this point the directory exists. Whatever else
                         # goes wrong is about the directory that is now there,
-                        # never about creating it -- reporting a creation
+                        # never about creating it. Reporting a creation
                         # failure here left the children waiting on something
                         # already present on disk.
                         applied("Created as a directory.")
@@ -645,7 +812,12 @@ def audit_and_fix(current_dir, fix, pending=None):
 
             # Descend either way, so the listing covers the children of a
             # container that is not there yet; act on them only once it is.
-            audit_and_fix(item, fix, None if ready else (pending or str(rel_path)))
+            audit_and_fix(
+                item,
+                fix,
+                None if ready else (pending or str(rel_path)),
+                as_absent or preview_absent,
+            )
             continue
 
         # Default: link the entry whole, file or directory alike.
@@ -671,8 +843,8 @@ def audit_and_fix(current_dir, fix, pending=None):
             # tell a leftover link from the right one. Ignoring it there costs
             # only the label: a link pointing somewhere else is still reported,
             # as a wrong target. Left in, it would name the link this script
-            # had just created correctly, and "remove it and run again" would
-            # recreate the same link and report it again for ever.
+            # had just created correctly, and --fix would relink it to the same
+            # place and report it again on the next run, for ever.
             stale = any(
                 p in actual or p in str(target)
                 for p in BAD_LINK_PATTERNS
@@ -682,13 +854,36 @@ def audit_and_fix(current_dir, fix, pending=None):
                 verified("link verified", rel_path, f"symlink -> {item}")
                 continue
 
-            report(
-                "stale link" if stale else "wrong target",
-                rel_path,
-                f"points at {actual}; remove the link and run again",
-                fix,
-                pending,
-            )
+            tag = "stale link" if stale else "wrong target"
+            if inside_repo(target):
+                # Names the wrong thing, but names it inside the repository,
+                # so the link is all there is to lose. The commonest case is a
+                # layout this script itself used to produce.
+                if report(
+                    tag,
+                    rel_path,
+                    f"points at {actual}, inside the repository, so the link "
+                    "is all there is to lose; --fix relinks it",
+                    fix,
+                    pending,
+                    klass=CREATE,
+                ):
+                    try:
+                        remove_repo_link(home_target)
+                        link(home_target, item)
+                    except OSError as e:
+                        failed(f"Relinking failed: {e}")
+                    else:
+                        applied("Relinked.")
+            else:
+                report(
+                    tag,
+                    rel_path,
+                    f"points at {actual}, outside the repository, so it is "
+                    "left alone; remove the link and run again",
+                    fix,
+                    pending,
+                )
             continue
 
         # Real content of some kind is already there. A directory may hold
@@ -702,6 +897,133 @@ def audit_and_fix(current_dir, fix, pending=None):
             else "move it aside and run again"
         )
         report("in the way", rel_path, f"already here; {advice}", fix, pending)
+
+
+def scan_dirs():
+    """Where the reverse scan looks: $HOME, and one level inside each container.
+
+    One level, because that is exactly as deep as the forward walk goes. A
+    container holds repo-managed entries beside local ones; below that the
+    repository never had anything, so nothing there can be its leftover.
+    """
+    yield HOME
+    for name in sorted(CONTAINERS):
+        directory = HOME / name
+        if directory.is_dir() and not directory.is_symlink():
+            yield directory
+
+
+def scan_orphans(fix):
+    """Report $HOME links into the repository whose target it no longer has.
+
+    The forward walk enumerates the repository, so the one thing it structurally
+    cannot see is a path the repository stopped having. Those links stay in
+    $HOME for ever, pointing at nothing, while a run reports everything
+    verified. On one server there were nine.
+
+    Removing one is the same trade as clearing any other link into the
+    repository: it holds no content, and here it does not even hold a
+    direction worth keeping. A dangling link pointing anywhere else is not
+    this script's to judge and is passed over in silence.
+    """
+    printed = False
+
+    def header():
+        nonlocal printed
+        if not printed:
+            print(paint("Links into the repository:", "2"))
+            printed = True
+
+    for directory in scan_dirs():
+        try:
+            entries = sorted(directory.iterdir())
+        except OSError as e:
+            print(paint(f"  Could not read {directory}: {e}", "1;31"))
+            scan_counts["failed"] += 1
+            continue
+
+        # Whether this run leaves the directory holding nothing. Every entry
+        # has to be a leftover this run clears; anything else (a file of
+        # yours, a link pointing elsewhere, a removal that failed) keeps it
+        # alive. An audit answers by prediction rather than observation, since
+        # the links it only lists are the ones a --fix run takes away; both
+        # modes therefore reach the same verdict from the same starting state.
+        # Vacuously true for a directory already emptied by an earlier run,
+        # which is what makes the finding survive a second --fix.
+        emptied = True
+
+        for path in entries:
+            if path in visited or not path.is_symlink():
+                emptied = False
+                continue
+            try:
+                actual, target = link_target(path)
+            except OSError:
+                emptied = False
+                continue
+            if not inside_repo(target):
+                emptied = False
+                continue
+
+            rel_path = path.relative_to(HOME)
+            if target.exists():
+                # A link into the repository the walk never reached: it names
+                # something real, so nothing is wrong with it, but saying so
+                # is how --verbose shows what the scan covered.
+                emptied = False
+                scan_counts["verified"] += 1
+                if VERBOSE:
+                    header()
+                    print(row("link verified", "34", rel_path,
+                              paint(f"symlink -> {actual}", "2")))
+                continue
+
+            header()
+
+            acting = fix
+            parts = [f"(points at {actual}, which the repository no longer has)"]
+            if not acting:
+                parts.append(paint("Needs --fix.", "2"))
+                scan_counts["to_remove"] += 1
+            print(row("orphaned link", "32", rel_path, "  ".join(parts)))
+            if not acting:
+                continue
+            try:
+                remove_repo_link(path)
+            except OSError as e:
+                scan_counts["failed"] += 1
+                emptied = False
+                print(paint(f"  Removing the link failed: {e}", "1;31"))
+            else:
+                scan_counts["removed"] += 1
+                print(paint("  Removed.", "2"))
+
+        # A container this run leaves behind with nothing in it. Two conditions,
+        # both decidable: the repository has no entry at this path, and every
+        # entry the directory holds is a leftover this run clears. Together they
+        # leave one reading: what it held were links into a repository that has
+        # nothing there any more, so the directory is the residue of that. A
+        # container whose repository entry still exists is passed over: empty is
+        # a legitimate state for one whose contents have not been created yet.
+        #
+        # MANUAL, and reported rather than removed. A symlink carries no content
+        # of its own, which is what makes clearing one safe; a directory is not
+        # the same trade even when empty, since its being there may be an
+        # arrangement of yours that predates this script.
+        if directory == HOME or not emptied:
+            continue
+        rel_path = directory.relative_to(HOME)
+        # lexists, not exists: a repository entry that is itself a dangling
+        # symlink is still an entry, and the forward walk has already named it.
+        if os.path.lexists(SRC / rel_path):
+            continue
+        header()
+        scan_counts["left_empty"] += 1
+        print(row(
+            "container left empty", "31", rel_path,
+            "(the repository no longer has this path and the directory is left "
+            "empty; remove it yourself if you want it gone)",
+        ))
 
 
 if __name__ == "__main__":
@@ -737,6 +1059,9 @@ if __name__ == "__main__":
 
     try:
         audit_and_fix(SRC, fix=args.fix)
+        # After the walk, so `visited` is complete and the scan can leave every
+        # path the walk already spoke about alone.
+        scan_orphans(fix=args.fix)
     except KeyboardInterrupt:
         where = f" while handling {current['entry']}" if current["entry"] else ""
         print(paint(f"\nInterrupted{where}.", "1;31"))
@@ -807,6 +1132,26 @@ if __name__ == "__main__":
                 )
             )
 
+    # The reverse scan's own line, kept out of the accounting above: its
+    # entries are not in the repository, so they were never among the examined
+    # ones and adding them would make the parts add up to a different total.
+    scan_parts = []
+    if scan_counts["removed"]:
+        scan_parts.append(paint(f"{scan_counts['removed']} orphaned removed", "32"))
+    if scan_counts["to_remove"]:
+        scan_parts.append(paint(f"{scan_counts['to_remove']} orphaned to remove", "32"))
+    if scan_counts["left_empty"]:
+        n = scan_counts["left_empty"]
+        scan_parts.append(
+            paint(f"{n} director{'y' if n == 1 else 'ies'} left empty", "31")
+        )
+    if scan_counts["failed"]:
+        scan_parts.append(paint(f"{scan_counts['failed']} failed", "1;31"))
+    if VERBOSE and scan_counts["verified"]:
+        scan_parts.append(paint(f"{scan_counts['verified']} sound", "34"))
+    if scan_parts:
+        print("Links into the repository: " + ", ".join(scan_parts) + ".")
+
     # Non-zero whenever anything is left outstanding, so a provisioning script
     # notices a run that reported politely and changed nothing.
     sys.exit(
@@ -816,5 +1161,8 @@ if __name__ == "__main__":
         or counts["blocked"]
         or counts["repo"]
         or counts["failed"]
+        or scan_counts["to_remove"]
+        or scan_counts["left_empty"]
+        or scan_counts["failed"]
         else 0
     )
