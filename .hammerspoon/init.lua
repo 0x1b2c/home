@@ -1,6 +1,6 @@
 hs.hotkey.bind('shift alt ctrl', 'r', 'Reload Hammerspoon config', function()
-    hs.reload()
+  hs.reload()
+  hs.notify.show('Hammerspoon', 'Config reloaded', '')
 end)
 
-require 'moonscript'
-require 'main'
+require('main')
