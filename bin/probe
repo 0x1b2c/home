@@ -1,0 +1,438 @@
+#!/usr/bin/env zsh
+# Resolve a name to its real address, report what can be learned about it, then ping it.
+#
+#   probe <name|address> [ping args...]
+#
+# Written for a machine sitting behind a transparent proxy (Surge) inside a censored
+# network, with Tailscale alongside it. Nearly every decision below follows from that
+# setting, and none of it is obvious from the code alone.
+#
+# Why not the system resolver
+#
+#   Surge answers every query with a 198.18.x.x placeholder that stands for the name
+#   rather than for any host, so `dig <name>`, `ping <name>` and `host <name>` all report
+#   something that is true of the proxy and nothing about the destination. Each vantage
+#   point below therefore addresses a resolver directly and bypasses the system path.
+#
+#   This works only while Surge's hijack-dns list stays narrow. Widening it to *:53 would
+#   capture these queries too and every line would collapse to a placeholder.
+#
+# The two vantage points, and why disagreement is the point
+#
+#   Upstream is the resolver this machine would use if Surge were not installed, queried
+#   in plaintext. DoH is an encrypted query that cannot be answered by anyone in the path.
+#   Neither is an authority. What the report offers is the contrast: on-path forgery is
+#   invisible in either answer alone and obvious in the pair. Two answer sets that do not
+#   intersect are marked, and that mark is a fact rather than a verdict, since a CDN
+#   answering two vantage points differently is ordinary and correct.
+#
+# Names that neither vantage point can resolve
+#
+#   Tailnet peers are known to Tailscale itself, so it is asked first and no DNS is
+#   involved. It resolves its own argument through the system resolver before matching it
+#   against the peer list, which means a fully qualified tailnet name reaches it as a
+#   placeholder and matches nothing; MagicDNS is asked directly to cover that case.
+#
+#   A .local name is answered by mDNS over multicast and appears in no unicast resolver,
+#   so it goes to mDNSResponder through dscacheutil. That is the system path this file
+#   otherwise avoids, and it is unavoidable here because nothing else can ask the
+#   question. It returns a real address only because Surge's skip-proxy list contains
+#   *.local; should that ever change, the answer becomes a placeholder and the report
+#   will say Fake IP rather than mislead.
+#
+# What the HTTP line does and does not establish
+#
+#   Surge accepts a TCP connection locally before it knows whether the upstream works, so
+#   a successful connect proves nothing and a closed port never produces a fast refusal,
+#   only a timeout. Nothing short of a completed transaction is evidence, hence a real
+#   request and a status code.
+#
+#   The request goes to the address for a tailnet or LAN target and to the name for
+#   everything else. A local peer reached by address answers in milliseconds and refuses a
+#   closed port outright, while the same peer reached by name costs a second through the
+#   rule system and cannot distinguish closed from unreachable. For a public target the
+#   opposite holds: the name is what makes the request traverse the rules the way ordinary
+#   traffic does, which is the only thing worth measuring there.
+#
+# Why ping still fails against a working proxy
+#
+#   ICMP never enters the proxy. The protocols carrying this machine's traffic move TCP
+#   streams and UDP datagrams, and an echo request fits in neither, so it leaves through
+#   the physical interface and is dropped in transit. A blocked address loses every packet
+#   no matter how well the proxy is working, and that is worth seeing rather than hiding.
+#   Ping is meaningful for tailnet, LAN, and anything else reached directly.
+#
+# Address classification
+#
+#   One function decides what kind of address it has been given, and three things read the
+#   answer: the HTTP deadline, the annotations, and what the probe is aimed at. Keeping it
+#   in one place is deliberate. An earlier version matched ranges inline and quietly took
+#   a large block of public space for private, which halved the deadline exactly where the
+#   longer one was needed.
+#
+#   Only an unexpected category is marked, so an ordinary public answer stays unadorned
+#   and an anomaly stands out. The Ping line always carries its category, because it
+#   states what the ping that follows is actually about to measure.
+#
+# Environment
+#
+#   PROBE_DOH             DoH endpoint. Default https://cloudflare-dns.com/dns-query.
+#                         Not every endpoint is reachable from here; dns.google is not.
+#   PROBE_PLAIN           Plaintext resolver. Defaults to this machine's own upstream.
+#   PROBE_HTTP_TIMEOUT    Deadline in seconds for the two HTTP requests. Defaults to 0.5
+#                         for a local target and 2 for a remote one, since the difference
+#                         is a distant TLS handshake. Zero is refused: curl reads it as no
+#                         deadline at all.
+
+emulate -L zsh
+set -u
+
+# http_probe removes its temporary directory on the normal path, but an interrupt
+# arriving during the two parallel requests would leave it behind. exec replaces this
+# process at the end of the script, so an EXIT trap never fires there and the ordinary
+# removal has to stay where it is; this covers the paths that do not reach exec.
+local tmpdir=''
+cleanup() {
+    [[ -n $tmpdir ]] && rm -rf $tmpdir
+    return 0
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM
+
+# The resolver this machine would use if Surge were not in the way, taken from the scoped
+# entries scutil reports for each interface. Surge's own responder and Tailscale's
+# MagicDNS address also appear there and neither answers the question this line asks, so
+# both are skipped. Falling back to a public resolver keeps the tool usable on a machine
+# that reports nothing usable at all.
+upstream_resolver() {
+    (( $+commands[scutil] )) || {
+        print -r -- 223.5.5.5
+        return
+    }
+    local ns
+    for ns in ${(f)"$(command scutil --dns 2>/dev/null |
+                          command awk '/nameserver\[[0-9]+\]/ {print $3}')"}; do
+        [[ $ns == <->.<->.<->.<-> ]] || continue
+        [[ $ns == (198.1[89]|127).* || $ns == 100.100.100.100 ]] && continue
+        print -r -- $ns
+        return
+    done
+    print -r -- 223.5.5.5
+}
+
+# Both vantage points are filtered through this and for the same reason: whatever survives
+# becomes the ping target and is printed verbatim, so a line that is not an address would
+# either reach the terminal as it stands or be read by ping as an option. Filtering only
+# one of the two would also make the overlap test below compare unlike sets.
+only_addresses() {
+    command grep -E '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'
+}
+
+# What kind of address this is. Three things read the answer: the deadline chosen below,
+# the annotations in the report, and what the HTTP probe is aimed at. Every range is a
+# bounded numeric glob, so no alternative can quietly widen into its neighbours.
+classify() {
+    local addr=${1:-}
+    case $addr in
+        100.<64-127>.<->.<->)
+            # RFC 6598 is carrier-NAT space that Tailscale merely borrows, so the range
+            # alone settles nothing. Only Tailscale knows whether the address is a peer.
+            if (( $+commands[tailscale] )) && command tailscale ip $addr >/dev/null 2>&1; then
+                print -r -- Tailscale
+            else
+                print -r -- CGNAT
+            fi ;;
+        10.<->.<->.<-> | 172.<16-31>.<->.<-> | 192.168.<->.<->) print -r -- LAN ;;
+        127.<->.<->.<-> | ::1)                                  print -r -- Loopback ;;
+        169.254.<->.<-> | fe[89ab][0-9a-f]:*)                   print -r -- Link-local ;;
+        198.<18-19>.<->.<->)                                    print -r -- 'Fake IP' ;;
+        # Multicast and the reserved class E are contiguous, hence the single range.
+        0.<->.<->.<-> | 192.0.2.<-> | 198.51.100.<-> | 203.0.113.<-> | <224-255>.<->.<->.<->)
+                                                                print -r -- Reserved ;;
+        *)                                                      print -r -- Public ;;
+    esac
+}
+
+# Only an unexpected category earns a mark. A public address under a public name is the
+# ordinary case, and repeating it on every line would bury the line where it matters: an
+# upstream answer that turns out to be private, or a placeholder that escaped the proxy.
+annotate() {
+    # Called with the first answer of a line that may have none, in which case there is
+    # nothing to categorise. Quoting matters here: an unquoted empty argument disappears
+    # rather than arriving as an empty string, leaving classify with none at all.
+    [[ -n ${1:-} ]] || return 0
+    local kind=$(classify "$1")
+    [[ $kind == Public ]] || print -rn -- "  $kind"
+}
+
+is_address() {
+    [[ $1 == <->.<->.<->.<-> || $1 == *:*:* ]]
+}
+
+local timeout
+# The name is appended below as this URL's first query parameter, so an endpoint
+# arriving with one of its own would produce a second question mark and a request
+# no server reads as intended. Discard it rather than refuse the variable: the part
+# that identifies the endpoint is still usable, and the discarded part was never
+# going to survive.
+local doh=${${PROBE_DOH:-https://cloudflare-dns.com/dns-query}%%\?*}
+
+(( $# )) || {
+    print -ru2 -- "Usage: probe <name|address> [ping args...]"
+    exit 2
+}
+
+# A missing one of these would otherwise surface as an empty field rather than as an
+# explanation, so the check runs before any network work. What separates this list from
+# tailscale, scutil and dscacheutil is not where each is used but how safe it is to assume
+# present: these ship with the system or come with the tooling any of this presupposes,
+# while the other three are optional installs or belong to one platform, and each of those
+# is guarded at its own use site where a fallback can be offered.
+local tool
+local -a missing
+for tool in curl dig jq grep awk mktemp ping tail; do
+    (( $+commands[$tool] )) || missing+=($tool)
+done
+(( $#missing )) && {
+    print -ru2 -- "probe: needs $missing"
+    exit 1
+}
+
+# curl exits during option parsing on a value it cannot read as a number, and http_probe
+# discards its stderr, so an unchecked value would reach the report as "no response" on
+# both ports: a configuration mistake wearing the costume of a measurement. Zero is
+# rejected as well, since curl reads it as "no timeout", the opposite of the intent.
+if [[ -n ${PROBE_HTTP_TIMEOUT:-} ]]; then
+    [[ $PROBE_HTTP_TIMEOUT == (<->|<->.<->|.<->) && $PROBE_HTTP_TIMEOUT == *[1-9]* ]] || {
+        print -ru2 -- "probe: PROBE_HTTP_TIMEOUT must be a positive number, got: $PROBE_HTTP_TIMEOUT"
+        exit 2
+    }
+fi
+
+local name=$1
+shift
+
+# tailscale ip with an empty operand reports this machine's own addresses, and it is left
+# with an empty operand by its own flags as much as by a blank argument: -1, -4 and -6 are
+# consumed as options and nothing remains to match against the peer list. Either form would
+# sail through the resolution below and yield a confident, well-formed report about a host
+# nobody asked for. No hostname or address begins with a hyphen, and ping at the end would
+# read one as an option of its own, so the character is refused outright.
+[[ -n ${name//[[:space:]]/} && $name != -* ]] || {
+    print -ru2 -- "Usage: probe <name|address> [ping args...]"
+    exit 2
+}
+
+print -r -- $name
+
+local target category
+local -a tailnet
+
+if is_address $name; then
+    # Nothing to resolve. Refusing to ping an address would be perverse in a tool whose
+    # last act is ping.
+    target=$name
+else
+    # A hostname is made of letters, digits, dots and hyphens. One branch below
+    # interpolates the name into a query string and a URL, where a character significant
+    # to either syntax would silently change the question being asked; the others hand it
+    # to a resolver that will only fail to find it. The check sits here, ahead of all of
+    # them, so that one kind of input meets one rule rather than three.
+    [[ -z ${name//[A-Za-z0-9._-]/} ]] || {
+        print -ru2 -- "probe: not a hostname: $name"
+        exit 2
+    }
+
+    # Tailnet first: Tailscale answers for its own peers without any DNS involved.
+    if (( $+commands[tailscale] )); then
+        tailnet=(${(f)"$(command tailscale ip $name 2>/dev/null)"})
+
+        # tailscale ip resolves the argument through the system resolver before matching
+        # it against the peer list. Here that resolver is Surge, so an FQDN comes back as
+        # a fake address and matches nothing, while a bare name is matched by Tailscale
+        # directly and works. MagicDNS answers both forms, so ask it as well. It declines
+        # to forward names outside the tailnet, which makes this cheap for public names
+        # and keeps the range check below from ever seeing a forwarded answer.
+        # AAAA is asked for as well, so that a peer carrying only an address in
+        # Tailscale's own fd7a:115c:a1e0::/48 can still be found by name. It takes a
+        # second invocation because this dig rejects two types in one query, answering
+        # neither. This tailnet returns nothing for AAAA today, so the second query is
+        # strictly best effort; the A answers are kept first, which leaves them the ones
+        # that become the target.
+        if (( ! $#tailnet )); then
+            local addr
+            local -a v4 v6
+            for addr in ${(f)"$(command dig +short +time=2 +tries=1 \
+                                    @100.100.100.100 $name A 2>/dev/null)"}; do
+                [[ $addr == 100.<64-127>.<->.<-> ]] && v4+=($addr)
+            done
+            for addr in ${(f)"$(command dig +short +time=2 +tries=1 \
+                                    @100.100.100.100 $name AAAA 2>/dev/null)"}; do
+                [[ $addr == fd7a:115c:a1e0:* ]] && v6+=($addr)
+            done
+            tailnet=($v4 $v6)
+        fi
+    fi
+
+    if (( $#tailnet )); then
+        printf '  %-9s %s%s\n' Tailnet "$tailnet" "$(annotate "${tailnet[1]}")"
+        target=${tailnet[1]}
+    elif [[ $name == *.local ]]; then
+        # .local is answered by mDNS over multicast, not by any unicast resolver, so
+        # neither vantage point below would see such a name at all. dscacheutil puts the
+        # question to mDNSResponder, which is the only component that can answer it.
+        (( $+commands[dscacheutil] )) || {
+            print -ru2 -- "probe: needs dscacheutil to resolve a .local name"
+            exit 1
+        }
+        local -a mdns
+        mdns=(${(f)"$(command dscacheutil -q host -a name $name 2>/dev/null |
+                          command awk -F': ' '/^ip_address/ {print $2}' | only_addresses)"})
+        printf '  %-9s %s%s\n' mDNS "${mdns:--}" "$(annotate "${mdns[1]:-}")"
+        target=${mdns[1]:-}
+    else
+        local upstream=${PROBE_PLAIN:-$(upstream_resolver)}
+        local -a upstream_addrs doh_addrs
+        upstream_addrs=(${(f)"$(command dig +short +time=2 +tries=1 \
+                                    @$upstream $name A 2>/dev/null | only_addresses)"})
+        doh_addrs=(${(f)"$(command curl -sm 5 -H 'accept: application/dns-json' \
+                               "$doh?name=$name&type=A" 2>/dev/null |
+                               command jq -r '.Answer[]? | select(.type == 1) | .data' 2>/dev/null |
+                               only_addresses)"})
+
+        printf '  %-9s %s  (%s)%s\n' Upstream "${upstream_addrs:--}" $upstream \
+            "$(annotate "${upstream_addrs[1]:-}")"
+        printf '  %-9s %s  (%s)%s\n' DoH "${doh_addrs:--}" ${${doh#*://}%%/*} \
+            "$(annotate "${doh_addrs[1]:-}")"
+
+        # No overlap states a fact, not a verdict: for a blocked name it is what a forged
+        # answer looks like, for a CDN it is two vantage points disagreeing as they
+        # should.
+        (( $#upstream_addrs && $#doh_addrs && ! ${#${(@)upstream_addrs:*doh_addrs}} )) &&
+            printf '  %-9s %s\n' '' 'no overlap'
+
+        # Prefer the answer that cannot have been forged.
+        target=${doh_addrs[1]:-${upstream_addrs[1]:-}}
+    fi
+fi
+
+[[ -n $target ]] || {
+    print -ru2 -- "probe: $name did not resolve"
+    exit 1
+}
+
+category=$(classify $target)
+
+# A peer reached directly has no distant TLS handshake to complete, so half a second is
+# generous. Reaching a public origin through the proxy measured 0.33s to 0.72s, almost all
+# of it the handshake, so that case needs several times as long.
+case $category in
+    Tailscale|LAN|Loopback|Link-local) timeout=${PROBE_HTTP_TIMEOUT:-0.5} ;;
+    *)                                 timeout=${PROBE_HTTP_TIMEOUT:-2} ;;
+esac
+
+# tailscale ping reports the route rather than the round trip, and stops on its own once
+# a direct path is found. It is the only way to see whether a peer is reached directly
+# or through a relay. Left unbounded it spends 15s on an offline peer, which is why it
+# carries a deadline like every other network call here.
+if [[ $category == Tailscale ]]; then
+    # The address, not the name: tailscale ping resolves its argument the same way
+    # tailscale ip does, and an FQDN would again come back as a fake address.
+    #
+    # stderr is discarded rather than merged. tailscale reports a failure there as a
+    # timestamped log line, which has no place in a formatted report, while stdout carries
+    # a plain sentence in every case worth showing, its own wording included. Producing
+    # nothing at all on stdout is itself the answer, and the field has to say so.
+    #
+    # --timeout bounds each attempt rather than the call, so three attempts against an
+    # unreachable peer take three times as long: measured at 6.06s for the 2s written
+    # here. The field therefore states no reply without naming a deadline it does not
+    # actually hold to.
+    local route=$(command tailscale ping --timeout 2s --c 3 $target 2>/dev/null |
+                      command tail -1)
+    printf '  %-9s %s\n' Path "${route:-no reply}"
+fi
+
+# A completed transaction is the only reachability evidence that survives the proxy: Surge
+# accepts the connection locally before it knows whether the upstream works, so a
+# successful connect proves nothing and a closed port never produces a fast refusal, only
+# a timeout. That wait is unavoidable; running both requests at once means paying it once
+# rather than twice, and the deadline chosen above bounds it.
+#
+# What the request is aimed at differs by category. A public name is requested by name, so
+# that it traverses the rule system exactly as ordinary traffic does. A peer reached
+# directly is requested by address instead: by name the same peer measured 1.02s against
+# 0.016s, and a closed port answered with a timeout rather than the refusal the address
+# produces in 9ms.
+http_probe() {
+    # Unchecked, a failure here would leave the variable empty, send both results to the
+    # filesystem root and hand an empty argument to the cleanup.
+    tmpdir=$(command mktemp -d) || {
+        print -ru2 -- "probe: could not create a temporary directory"
+        return 1
+    }
+
+    local scheme port
+    local host=$name
+    [[ $category == (Tailscale|LAN) ]] && host=$target
+    # A bare IPv6 address has to be bracketed before it can sit in a URL.
+    [[ $host == *:*:* ]] && host="[$host]"
+    for scheme port in http 80 https 443; do
+        # LC_NUMERIC is pinned so that the elapsed time comes back with a dot for its
+        # decimal mark. Under a locale that renders it as a comma the arithmetic below
+        # would read the value as two operands and report a figure a thousandfold out.
+        LC_NUMERIC=C command curl -sm $timeout -o /dev/null \
+            -w '%{http_code} %{time_total}' "$scheme://$host/" >$tmpdir/$port 2>/dev/null &
+    done
+    wait
+
+    # A bare number reads as noise next to two columns of addresses. The reason phrase is
+    # what tells you whether the site answered, redirected, or refused.
+    typeset -A reason=(
+        200 'OK'                    201 'Created'               204 'No Content'
+        301 'Moved Permanently'     302 'Found'                 303 'See Other'
+        304 'Not Modified'          307 'Temporary Redirect'    308 'Permanent Redirect'
+        400 'Bad Request'           401 'Unauthorized'          403 'Forbidden'
+        404 'Not Found'             405 'Method Not Allowed'    408 'Request Timeout'
+        429 'Too Many Requests'     451 'Unavailable For Legal Reasons'
+        500 'Internal Server Error' 502 'Bad Gateway'           503 'Service Unavailable'
+        504 'Gateway Timeout'
+    )
+
+    local -a probes
+    local out code phrase secs
+    for port in 80 443; do
+        out=$(<$tmpdir/$port)
+        code=${out%% *}
+        if [[ -z $out || $code == 000 ]]; then
+            probes+=("$port -> no response")
+            continue
+        fi
+        phrase=${reason[$code]:-}
+        if [[ -z $phrase ]]; then
+            case $code in
+                2*) phrase='Success' ;;
+                3*) phrase='Redirect' ;;
+                4*) phrase='Client Error' ;;
+                5*) phrase='Server Error' ;;
+                *)  phrase='Unknown' ;;
+            esac
+        fi
+        # The status is the finding; the timing is a courtesy. If the field is not a plain
+        # number the courtesy is dropped rather than allowed to invent a figure.
+        secs=${out##* }
+        if [[ $secs == (<->|<->.<->) ]]; then
+            probes+=("$(printf '%s -> %s %s in %.0fms' $port $code $phrase $(( secs * 1000 )))")
+        else
+            probes+=("$port -> $code $phrase")
+        fi
+    done
+    rm -rf $tmpdir
+    tmpdir=''
+    printf '  %-9s %s\n' HTTP "${(j:   :)probes}"
+}
+
+http_probe
+printf '  %-9s %s  %s\n\n' Ping "$target" "$category"
+exec ping $target "$@"
