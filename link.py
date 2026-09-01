@@ -26,6 +26,7 @@ An entry that is already as it should be is counted as verified rather than
 passed over in silence, so a run can say how much it checked and not only what
 it found. --verbose prints those too, and the entries skipped by EXCLUDES.
 """
+
 import argparse
 import difflib
 import os
@@ -43,13 +44,13 @@ from pathlib import Path
 # 1. Names skipped entirely, whatever they are.
 EXCLUDES = {
     ".git",
+    ".gitignore",
     ".DS_Store",
     "link.py",
     # The alias this script is invoked through. Excluded by name like link.py
     # itself, or ~/install would appear on every machine.
     "install",
     "README.md",
-    "hs.tgz",
     "__pycache__",
     # Clones of separate repositories that happen to sit in this working tree,
     # untracked and each carrying its own .git, so neither is this repository's
@@ -61,7 +62,7 @@ EXCLUDES = {
     # Syncthing's own directories and a one-off backup; not dotfiles.
     ".stfolder",
     ".stversions",
-    "old_home",
+    ".stignore",
 }
 
 # 2. Containers: these must be real directories under $HOME, not symlinks.
@@ -658,7 +659,9 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 else:
                     if seed_head_matches(repo_bytes, head):
                         verified(
-                            "seed verified", rel_path, "the repository's version is still its start"
+                            "seed verified",
+                            rel_path,
+                            "the repository's version is still its start",
                         )
                     else:
                         report(
@@ -799,7 +802,8 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                     report(
                         "container is not private",
                         rel_path,
-                        f"mode {mode:04o}, which other accounts can read; chmod it to 0700 yourself",
+                        f"mode {mode:04o}, which other accounts can read; "
+                        "chmod it to 0700 yourself",
                         fix,
                         pending,
                     )
@@ -825,7 +829,8 @@ def audit_and_fix(current_dir, fix, pending=None, as_absent=False):
                 report(
                     "container is not a directory",
                     rel_path,
-                    "something that is neither a file nor a directory is here; move it aside",
+                    "something that is neither a file nor a directory is here; "
+                    "move it aside",
                     fix,
                     pending,
                 )
@@ -997,8 +1002,14 @@ def scan_orphans(fix):
                 scan_counts["verified"] += 1
                 if VERBOSE:
                     header()
-                    print(row("link verified", "34", home_display(rel_path),
-                              paint(f"symlink -> {actual}", "2")))
+                    print(
+                        row(
+                            "link verified",
+                            "34",
+                            home_display(rel_path),
+                            paint(f"symlink -> {actual}", "2"),
+                        )
+                    )
                 continue
 
             header()
@@ -1042,11 +1053,15 @@ def scan_orphans(fix):
             continue
         header()
         scan_counts["left_empty"] += 1
-        print(row(
-            "container left empty", "31", home_display(rel_path),
-            "(the repository no longer has this path, and nothing is left in "
-            "the directory; remove it yourself if you want it gone)",
-        ))
+        print(
+            row(
+                "container left empty",
+                "31",
+                home_display(rel_path),
+                "(the repository no longer has this path, and nothing is left in "
+                "the directory; remove it yourself if you want it gone)",
+            )
+        )
 
 
 if __name__ == "__main__":
