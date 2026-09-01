@@ -178,6 +178,7 @@
 	show	= show -b
 	showw	= show -b --word-diff=color
 	shows	= show --show-signature
+	lsu		= ls-files --others --directory
 
 	# ── Submodule ──
 	sm		= submodule
