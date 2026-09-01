@@ -85,19 +85,28 @@ WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 
 # Plugins --------------------------------------------------------------------------------------------------------- {{{1
 #
-# sheldon clones and sources the plugins; sheldon itself comes from the package
-# manager, so there is no bootstrap here. Before Completion because
-# zsh-completions only feeds fpath, which compinit reads once; the others have no
-# such need, but sheldon emits them in one go. Not in external.zsh: that runs
-# after compinit, which the fzf and bun snippets there require.
+# sheldon comes from the package manager, so there is no bootstrap here. It runs
+# before Completion because zsh-completions only feeds fpath, which compinit reads
+# once, and not from external.zsh, which runs after compinit.
 #
-# $MACHINE_ROLE picks the profile, so a plugin tagged in plugins.toml loads only
-# where it is wanted. Unset means the minimal set, which is what a plain clone
-# gets.
+# $MACHINE_ROLE picks the profile; unset means the minimal set a plain clone gets.
+#
+# `sheldon source` clones whenever the lock is missing or older than plugins.toml,
+# and on a host that cannot reach GitHub that clone waits instead of failing,
+# taking every new shell with it. So decide with two stats and no network, and
+# leave the cloning to `sheldon lock` in provisioning, where a stall is visible.
+# The lock is per profile: plugins.lock without one, plugins.<profile>.lock with.
 if (( $+commands[sheldon] )); then
-    eval "$(SHELDON_PROFILE=$MACHINE_ROLE sheldon source)"
-
-    bindkey '^e' autosuggest-accept
+    () {
+        local conf=${XDG_CONFIG_HOME:-$HOME/.config}/sheldon/plugins.toml
+        local lock=${XDG_DATA_HOME:-$HOME/.local/share}/sheldon/plugins${MACHINE_ROLE:+.$MACHINE_ROLE}.lock
+        if [[ ! -s $lock || $conf -nt $lock ]]; then
+            print -u2 'sheldon: no current lock, plugins not loaded; run `sheldon lock`'
+            return
+        fi
+        eval "$(SHELDON_PROFILE=$MACHINE_ROLE sheldon source)"
+        bindkey '^e' autosuggest-accept
+    }
 fi
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
