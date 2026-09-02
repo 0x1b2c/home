@@ -81,6 +81,14 @@ bindkey -M vicmd 'j'                down-session-history
 # Which characters Ctrl-W and friends treat as part of a word rather than a
 # boundary. Shorter than the default, so paths and options break apart.
 WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
+
+# Let `#` open a comment at the prompt too, so a block pasted from notes runs
+# as-is. zsh leaves this off because interactive input often carries a literal
+# `#` — colours, URL fragments, issue numbers — and an unquoted one at the start
+# of a word silently swallows the rest of the line. Quotes, a backslash, or any
+# character before it on the same word all defeat that, so what remains exposed
+# is only text one would not have quoted anyway.
+setopt interactive_comments
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # Plugins --------------------------------------------------------------------------------------------------------- {{{1
