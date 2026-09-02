@@ -89,7 +89,10 @@ WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 # before Completion because zsh-completions only feeds fpath, which compinit reads
 # once, and not from external.zsh, which runs after compinit.
 #
-# $MACHINE_ROLE picks the profile; unset means the minimal set a plain clone gets.
+# $MACHINE_ROLE picks the profile. env.zsh defaults it to minimal, so it is never
+# empty; minimal means a machine that declared nothing, which is what sheldon does
+# with no profile at all. Fold it back to empty and the lock is the plain
+# plugins.lock, so a hand-typed `sheldon lock` needs no environment to match.
 #
 # `sheldon source` clones whenever the lock is missing or older than plugins.toml,
 # and on a host that cannot reach GitHub that clone waits instead of failing,
@@ -98,13 +101,17 @@ WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 # The lock is per profile: plugins.lock without one, plugins.<profile>.lock with.
 if (( $+commands[sheldon] )); then
     () {
+        local profile=${MACHINE_ROLE:#minimal}
         local conf=${XDG_CONFIG_HOME:-$HOME/.config}/sheldon/plugins.toml
-        local lock=${XDG_DATA_HOME:-$HOME/.local/share}/sheldon/plugins${MACHINE_ROLE:+.$MACHINE_ROLE}.lock
+        local lock=${XDG_DATA_HOME:-$HOME/.local/share}/sheldon/plugins${profile:+.$profile}.lock
         if [[ ! -s $lock || $conf -nt $lock ]]; then
-            print -u2 'sheldon: no current lock, plugins not loaded; run `sheldon lock`'
+            # Print the command that actually produces this lock, profile and all:
+            # following an instruction that writes a differently named lock leaves the
+            # shell in exactly the state the instruction was meant to end.
+            print -u2 "sheldon: no current lock, plugins not loaded; run \`${profile:+SHELDON_PROFILE=$profile }sheldon lock\`"
             return
         fi
-        eval "$(SHELDON_PROFILE=$MACHINE_ROLE sheldon source)"
+        eval "$(SHELDON_PROFILE=$profile sheldon source)"
         bindkey '^e' autosuggest-accept
     }
 fi
