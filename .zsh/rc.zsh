@@ -89,6 +89,41 @@ WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 # character before it on the same word all defeat that, so what remains exposed
 # is only text one would not have quoted anyway.
 setopt interactive_comments
+
+# Take the common indentation off pasted text. Terminal UIs indent what they
+# print — Claude Code puts every line two columns in — and a pasted command that
+# begins with a blank is dropped by HIST_IGNORE_SPACE above, so it never reaches
+# the history file at all. Only the shared prefix goes: relative indentation
+# inside the paste survives, so a Python body still lands correctly. A blank
+# typed by hand is untouched, since typing does not go through bracketed-paste.
+#
+# This has to come before the plugins: zsh-autosuggestions and
+# fast-syntax-highlighting wrap bracketed-paste by name as they initialise, and
+# they can only wrap a widget that already exists.
+_paste_dedent() {
+    local pasted
+    zle .bracketed-paste pasted
+
+    local -a lines=("${(@f)pasted}")
+    local -i min=-1 n i
+    local l lead
+
+    for l in $lines; do
+        [[ -z ${l//[[:space:]]/} ]] && continue   # blank lines say nothing about the indent
+        lead=${l%%[![:space:]]*}
+        n=${#lead}
+        (( min < 0 || n < min )) && min=$n
+    done
+
+    if (( min > 0 )); then
+        for (( i = 1; i <= $#lines; i++ )); do
+            lines[i]=${lines[i]:$min}
+        done
+    fi
+
+    LBUFFER+="${(pj:\n:)lines}"
+}
+zle -N bracketed-paste _paste_dedent
 # ----------------------------------------------------------------------------------------------------------------- }}}1
 
 # Plugins --------------------------------------------------------------------------------------------------------- {{{1
