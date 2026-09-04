@@ -24,6 +24,8 @@
 	defaultBranch = master
 [submodule]
 	recurse = true
+[safe]
+	directory = *
 
 # ── Pager and colour ────────────────────────────────────────────────────────
 [color]
