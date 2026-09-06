@@ -35,4 +35,12 @@ IRB.conf[:IRB_RC] = proc do
   end
 end
 
+unless defined?(Rails)
+  class Integer
+    def /(other)
+      fdiv(other)
+    end
+  end
+end
+
 # vim: set ft=ruby:
