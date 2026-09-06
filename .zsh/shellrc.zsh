@@ -61,6 +61,8 @@ else
     alias dstart='sudo systemctl start'
     alias drestart='sudo systemctl restart'
     alias dstop='sudo systemctl stop'
+    alias dreload='sudo systemctl daemon-reload'
+    alias jctl='journalctl -u'
     alias wicd='wicd-curses'
 fi
 # ----------------------------------------------------------------------------------------------------------------- }}}2
