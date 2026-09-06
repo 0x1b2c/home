@@ -146,8 +146,8 @@
 	dct		= difftool --cached
 
 	# ── HEAD shortcuts (avoid typing HEAD~N) ──
-	# git h 3 → show HEAD~3, git h → show HEAD~1
-	h		= "!f() { git show HEAD~${1:-1}; }; f"
+	# git h 3 → show HEAD~3, git h → show HEAD（等同 git h 0）
+	h		= "!f() { git show HEAD~${1:-0}; }; f"
 	# git hd 3 1 → diff HEAD~3..HEAD~1, git hd 3 → diff HEAD~3..HEAD
 	hd		= "!f() { git diff HEAD~$1..${2:+HEAD~$2}${2:-HEAD}; }; f"
 
