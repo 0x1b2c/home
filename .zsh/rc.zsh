@@ -230,9 +230,6 @@ zstyle ':completion:*:warnings' format $'\e[01;31m -- No Matches Found --\e[0m'
 # Directories ----------------------------------------------------------------------------------------------------- {{{1
 #
 setopt auto_pushd                # every cd pushes onto the stack, so `cd -<Tab>` works
-# * matches dotfiles, which is why `ls *` and Tab show them without typing the
-# leading dot. The same applies to `rm *`, which then takes .git with it.
-setopt globdots
 
 # Named directories, so that cd ~xxx works
 hash -d VHOST="/var/www/vhosts"
