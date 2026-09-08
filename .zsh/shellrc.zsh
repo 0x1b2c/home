@@ -30,7 +30,6 @@ alias g='git'
 alias gf='git-flow'
 alias gldl='gallery-dl'
 alias gr='gemini -r'
-alias grep='grep --color'
 alias gvi='NVIM_APPNAME=nvchad gvim'
 alias ka='killall'
 alias mpvq='mpv >/dev/null 2&>1'
@@ -38,8 +37,6 @@ alias psg='ps aux | grep'
 alias pwgen='pwgen -s'
 alias py='python'
 alias r='rails'
-alias rsync='rsync -PchavzX --stats'
-alias sudo='sudo -E'
 alias upgrade_gemini='bun add -g @google/gemini-cli@latest'
 alias vi='NVIM_APPNAME=nvchad nvim'
 alias vim='nvim'
@@ -67,27 +64,46 @@ else
 fi
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
-# Extra ----------------------------------------------------------------------------------------------------------- {{{2
-if (( $+commands[eza] )); then
-    alias ls='eza --binary --color-scale=all --hyperlink --icons=auto'
-    alias lsa='ls --absolute=on --hyperlink'
-elif [[ $OSTYPE == darwin* ]]; then
-    alias ls='ls -GFh'
-else
-    alias ls='ls --color -hF --show-control-chars'
-fi
+# Standard command overrides -------------------------------------------------------------------------------------- {{{2
+#
+# Skipped under Claude Code: it snapshots the interactive shell, aliases included, and sources that snapshot before
+# every command it runs, so its cat, ls, curl, diff and the rest would otherwise land in bat, eza, curlie and delta.
+# CLAUDECODE is set in its environment.
+if [[ -z $CLAUDECODE ]]; then
+    alias grep='grep --color'
+    alias rsync='rsync -PchavzX --stats'
+    alias sudo='sudo -E'
 
-if (( $+commands[bat] )); then
-    alias cat='bat'
-    alias less='bat'
-else
-    alias less='less -r'
-fi
+    if (( $+commands[eza] )); then
+        alias ls='eza --binary --color-scale=all --hyperlink --icons=auto'
+        alias lsa='ls --absolute=on --hyperlink'
+    elif [[ $OSTYPE == darwin* ]]; then
+        alias ls='ls -GFh'
+    else
+        alias ls='ls --color -hF --show-control-chars'
+    fi
 
-(( $+commands[curlie] )) && alias curl='curlie'
-(( $+commands[dog] )) && alias dig='dog'
-(( $+commands[mongosh] )) && alias mongo='mongosh'
-(( $+commands[wget2] )) && alias wget='wget2'
+    if (( $+commands[bat] )); then
+        alias cat='bat'
+        alias less='bat'
+    else
+        alias less='less -r'
+    fi
+
+    (( $+commands[curlie] )) && alias curl='curlie'
+    (( $+commands[dog] )) && alias dig='dog'
+    (( $+commands[mongosh] )) && alias mongo='mongosh'
+    (( $+commands[wget2] )) && alias wget='wget2'
+
+    # diff: colourised diff through delta, keeping diff's own exit status rather than delta's.
+    if (( $+commands[delta] )); then
+        diff() {
+            command diff -ur "$@" | delta
+            return $pipestatus[1]
+        }
+        compdef _diff diff
+    fi
+fi
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
 # Arch Linux ------------------------------------------------------------------------------------------------------ {{{2
@@ -177,16 +193,6 @@ function dash() {
         fi
     fi
 }
-# ----------------------------------------------------------------------------------------------------------------- }}}2
-
-# diff: colourised diff through delta, keeping diff's own exit status rather than delta's. ------------------------ {{{2
-if (( $+commands[delta] )); then
-    diff() {
-        command diff -ur "$@" | delta
-        return $pipestatus[1]
-    }
-    compdef _diff diff
-fi
 # ----------------------------------------------------------------------------------------------------------------- }}}2
 
 # dirdiffs: compare two trees by the sha256 of every file. Read-only, writes and deletes nothing. ----------------- {{{2
