@@ -20,6 +20,7 @@
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 (( $+commands[fzf] )) && eval "$(fzf --zsh)"
 (( $+commands[broot] )) && eval "$(broot --print-shell-function zsh)"
+(( $+commands[survey] )) && eval "$(survey completions zsh)"
 
 # No generator to ask. Both are rewritten by their own installer and name no
 # absolute path.
