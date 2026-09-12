@@ -155,6 +155,18 @@ if (( $+commands[sheldon] )); then
             return
         fi
         eval "$(SHELDON_PROFILE=$profile sheldon source)"
+
+        # Abbreviations are buffer text, not shell names, so fast-syntax-highlighting
+        # finds nothing to look up and paints every one of them as an unknown command.
+        # A same-named alias gives it something to find; the alias itself never runs,
+        # because abbr expands the abbreviation on both space and enter. (Q) is needed
+        # because zsh-abbr keeps the keys and values quoted as the abbreviation file
+        # wrote them, and an alias named `"foo"` is not the name anyone types.
+        local k v
+        for k v in ${(kv)ABBR_REGULAR_USER_ABBREVIATIONS}; do
+            alias -- "${(Q)k}=${(Q)v}"
+        done
+
         bindkey '^e' autosuggest-accept
     }
 fi
