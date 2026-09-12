@@ -273,7 +273,7 @@ local appBindings = {
   { 'alt R', 'MuMu安卓设备' },
   { 'alt shift R', 'MuMuPlayer' },
   { 'alt T', 'WezTerm' },
-  { 'alt shift T', 'ChatGPT Classic' },
+  { 'alt shift T', 'ChatGPT' },
   { 'alt Y', 'Typora' },
   { 'alt U', 'Ulysses' },
   { 'alt I', 'iPhone Mirroring' },
