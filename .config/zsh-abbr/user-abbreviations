@@ -15,8 +15,13 @@ abbr "ytdlmp4"="yt-dlp --force-overwrites -f \"bestvideo[ext=mp4]+bestaudio[ext=
 abbr "ytdlsub"="yt-dlp --write-sub --embed-subs --convert-subs srt --sub-lang"
 
 # Misc
+abbr "duh"="du -hd1 % | sort -h"
 abbr "ka"="killall"
 abbr "lsa"="ls --absolute=on --hyperlink"
+
+abbr "clc"="claude-chatlog"
+abbr "clcg"="claude-chatlog grep"
+abbr "clx"="generate-codex-chatlog"
 
 # pacman
 abbr "pacupg"="sudo pacman --color=auto -Syu"

@@ -154,6 +154,11 @@ if (( $+commands[sheldon] )); then
             print -u2 "sheldon: no current lock, plugins not loaded; run \`${profile:+SHELDON_PROFILE=$profile }sheldon lock\`"
             return
         fi
+        # zsh-abbr puts the cursor wherever an expansion carries ABBR_EXPANSION_CURSOR_MARKER
+        # (a literal %), which is how an abbreviation can take an argument in the middle of a
+        # pipeline. It is off by default and read when the plugin loads, so set it before.
+        ABBR_SET_EXPANSION_CURSOR=1
+
         eval "$(SHELDON_PROFILE=$profile sheldon source)"
 
         # Abbreviations are buffer text, not shell names, so fast-syntax-highlighting
