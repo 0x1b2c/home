@@ -20,7 +20,9 @@ abbr "ka"="killall"
 abbr "lsa"="ls --absolute=on --hyperlink"
 
 abbr "clc"="claude-chatlog"
+abbr "clce"="claude-chatlog export"
 abbr "clcg"="claude-chatlog grep"
+abbr "clcs"="claude-chatlog show"
 abbr "clx"="generate-codex-chatlog"
 
 # pacman
