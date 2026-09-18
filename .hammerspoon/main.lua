@@ -316,6 +316,28 @@ hs.fnutils.each(appBindings, function(binding)
   end)
 end)
 
+-- Switch input sources by hotkey, replacing Kawa.
+local inputSourceBindings = {
+  { 'ctrl cmd 4', 'com.apple.keylayout.ABC' },
+  { 'ctrl cmd 5', 'com.apple.inputmethod.SCIM.ITABC' },
+  { 'ctrl cmd 6', 'com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese' },
+  { 'ctrl cmd 7', 'com.apple.inputmethod.Kotoeri.RomajiTyping.Japanese.Katakana' },
+  { 'ctrl cmd 8', 'org.1b2c.inputmethod.LaplaceIME.Hans' },
+  { 'ctrl cmd 9', 'com.apple.inputmethod.TCIM.Pinyin' },
+}
+
+hs.fnutils.each(inputSourceBindings, function(binding)
+  local key = binding[1]
+  local sourceID = binding[2]
+
+  -- No message: a string there makes bind pop an hs.alert on every trigger.
+  bind(key, function()
+    if not hs.keycodes.currentSourceID(sourceID) then
+      logger.w('Failed to switch input source to ' .. sourceID)
+    end
+  end)
+end)
+
 bind('ctrl alt R', function()
   local win = hs.window.find('Android Device')
   if win then
