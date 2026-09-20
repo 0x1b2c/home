@@ -49,4 +49,8 @@
         autoload -Uz $fn
         compdef $fn ${fn#_}
     done
+
+    # Hand-written completion linked here by ~/Agentic/Skills/link.sh; the claude
+    # CLI ships none, so there is no generator for it.
+    [[ -f $d/_claude ]] && { autoload -Uz _claude; compdef _claude claude }
 }
