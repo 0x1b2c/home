@@ -2,6 +2,12 @@
 # someone else wrote it and told you to paste it into your shell config.
 # Everything is guarded, so a machine that lacks the tool simply skips it.
 #
+# The guard is -x on the resolved path, not $+commands. $commands is built by
+# listing the PATH directories, so it holds every name found there whether or
+# not it can run: on a2 a dangling ~/.cargo/bin/rustup, left pointing at a
+# removed /usr/local/bin/rustup-init, passed $+commands and every new shell
+# then printed "command not found". -x follows the link and fails.
+#
 # Ask the tool for its snippet rather than sourcing a file it generated once.
 # A generated file freezes the paths of the machine that wrote it and then
 # fails silently, since every line in it is guarded.
@@ -12,15 +18,15 @@
 
 # LS_COLORS, read by ls, eza and the completion menu. GNU coreutils names it
 # dircolors; the homebrew build on macOS prefixes every tool with g.
-(( $+commands[dircolors] )) && eval "$(dircolors -b)"
-(( $+commands[gdircolors] )) && eval "$(gdircolors -b)"
+[[ -x $commands[dircolors] ]] && eval "$(dircolors -b)"
+[[ -x $commands[gdircolors] ]] && eval "$(gdircolors -b)"
 
-(( $+commands[starship] )) && eval "$(starship init zsh)"
-(( $+commands[mise] )) && eval "$(mise activate zsh)"
-(( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
-(( $+commands[fzf] )) && eval "$(fzf --zsh)"
-(( $+commands[broot] )) && eval "$(broot --print-shell-function zsh)"
-(( $+commands[survey] )) && eval "$(survey completions zsh)"
+[[ -x $commands[starship] ]] && eval "$(starship init zsh)"
+[[ -x $commands[mise] ]] && eval "$(mise activate zsh)"
+[[ -x $commands[zoxide] ]] && eval "$(zoxide init zsh)"
+[[ -x $commands[fzf] ]] && eval "$(fzf --zsh)"
+[[ -x $commands[broot] ]] && eval "$(broot --print-shell-function zsh)"
+[[ -x $commands[survey] ]] && eval "$(survey completions zsh)"
 
 # No generator to ask. Both are rewritten by their own installer and name no
 # absolute path.
@@ -44,7 +50,7 @@
         rustup _rustup 'rustup completions zsh' \
         rustup _cargo  'rustup completions zsh cargo'
     do
-        (( $+commands[$tool] )) || continue
+        [[ -x $commands[$tool] ]] || continue
         [[ -s $d/$fn && $d/$fn -nt $commands[$tool] ]] || eval $cmd > $d/$fn
         autoload -Uz $fn
         compdef $fn ${fn#_}
