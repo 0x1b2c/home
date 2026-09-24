@@ -74,7 +74,7 @@ if [[ -z $CLAUDECODE ]]; then
     alias rsync='rsync -PchavzX --stats'
     alias sudo='sudo -E'
 
-    if (( $+commands[eza] )); then
+    if [[ -x $commands[eza] ]]; then
         alias ls='eza --binary --color-scale=all --hyperlink --icons=auto'
         alias lsa='ls --absolute=on --hyperlink'
     elif [[ $OSTYPE == darwin* ]]; then
@@ -83,20 +83,20 @@ if [[ -z $CLAUDECODE ]]; then
         alias ls='ls --color -hF --show-control-chars'
     fi
 
-    if (( $+commands[bat] )); then
+    if [[ -x $commands[bat] ]]; then
         alias cat='bat'
         alias less='bat'
     else
         alias less='less -r'
     fi
 
-    (( $+commands[curlie] )) && alias curl='curlie'
-    (( $+commands[dog] )) && alias dig='dog'
-    (( $+commands[mongosh] )) && alias mongo='mongosh'
-    (( $+commands[wget2] )) && alias wget='wget2'
+    [[ -x $commands[curlie] ]] && alias curl='curlie'
+    [[ -x $commands[dog] ]] && alias dig='dog'
+    [[ -x $commands[mongosh] ]] && alias mongo='mongosh'
+    [[ -x $commands[wget2] ]] && alias wget='wget2'
 
     # diff: colourised diff through delta, keeping diff's own exit status rather than delta's.
-    if (( $+commands[delta] )); then
+    if [[ -x $commands[delta] ]]; then
         diff() {
             command diff -ur "$@" | delta
             return $pipestatus[1]

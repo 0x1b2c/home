@@ -160,7 +160,7 @@ zle -N bracketed-paste _paste_dedent
 # taking every new shell with it. So decide with two stats and no network, and
 # leave the cloning to `sheldon lock` in provisioning, where a stall is visible.
 # The lock is per profile: plugins.lock without one, plugins.<profile>.lock with.
-if (( $+commands[sheldon] )); then
+if [[ -x $commands[sheldon] ]]; then
     () {
         local profile=${MACHINE_ROLE:#minimal}
         local conf=${XDG_CONFIG_HOME:-$HOME/.config}/sheldon/plugins.toml

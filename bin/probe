@@ -106,7 +106,7 @@ trap 'cleanup; exit 143' TERM
 # both are skipped. Falling back to a public resolver keeps the tool usable on a machine
 # that reports nothing usable at all.
 upstream_resolver() {
-    (( $+commands[scutil] )) || {
+    [[ -x $commands[scutil] ]] || {
         print -r -- 223.5.5.5
         return
     }
@@ -138,7 +138,7 @@ classify() {
         100.<64-127>.<->.<->)
             # RFC 6598 is carrier-NAT space that Tailscale merely borrows, so the range
             # alone settles nothing. Only Tailscale knows whether the address is a peer.
-            if (( $+commands[tailscale] )) && command tailscale ip $addr >/dev/null 2>&1; then
+            if [[ -x $commands[tailscale] ]] && command tailscale ip $addr >/dev/null 2>&1; then
                 print -r -- Tailscale
             else
                 print -r -- CGNAT
@@ -192,7 +192,7 @@ local doh=${${PROBE_DOH:-https://cloudflare-dns.com/dns-query}%%\?*}
 local tool
 local -a missing
 for tool in curl dig jq grep awk mktemp ping tail; do
-    (( $+commands[$tool] )) || missing+=($tool)
+    [[ -x $commands[$tool] ]] || missing+=($tool)
 done
 (( $#missing )) && {
     print -ru2 -- "probe: needs $missing"
@@ -245,7 +245,7 @@ else
     }
 
     # Tailnet first: Tailscale answers for its own peers without any DNS involved.
-    if (( $+commands[tailscale] )); then
+    if [[ -x $commands[tailscale] ]]; then
         tailnet=(${(f)"$(command tailscale ip $name 2>/dev/null)"})
 
         # tailscale ip resolves the argument through the system resolver before matching
@@ -282,7 +282,7 @@ else
         # .local is answered by mDNS over multicast, not by any unicast resolver, so
         # neither vantage point below would see such a name at all. dscacheutil puts the
         # question to mDNSResponder, which is the only component that can answer it.
-        (( $+commands[dscacheutil] )) || {
+        [[ -x $commands[dscacheutil] ]] || {
             print -ru2 -- "probe: needs dscacheutil to resolve a .local name"
             exit 1
         }
