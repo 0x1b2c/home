@@ -90,6 +90,14 @@ WORDCHARS='*?_-[]~=&;!#$%^(){}<>'
 # is only text one would not have quoted anyway.
 setopt interactive_comments
 
+# Pass a pattern that matches nothing through to the command as written, the
+# way bash does, instead of refusing to run. The shell cannot tell which words
+# are local paths, so remote paths (host:path/*), URLs with `?` and git's
+# rev:path* all tripped the error and had to be quoted. A pattern that does
+# match locally still expands. Scripts never read this file, so they keep
+# nomatch and still fail on the spot when a glob comes up empty.
+unsetopt nomatch
+
 # Take the common indentation off pasted text. Terminal UIs indent what they
 # print — Claude Code puts every line two columns in — and a pasted command that
 # begins with a blank is dropped by HIST_IGNORE_SPACE above, so it never reaches
