@@ -98,6 +98,16 @@ setopt interactive_comments
 # nomatch and still fail on the spot when a glob comes up empty.
 unsetopt nomatch
 
+# Three more places where zsh departs from bash in ways that only get in the way
+# at the prompt. A word starting with = is no longer rewritten to a command
+# path, so ==== separators, pasted Markdown and =name arguments pass through.
+# Background jobs keep normal priority as in bash; nice can also fail under
+# WSL1, printing an error on every &. And ~ after = expands too, as in
+# PREFIX=~/x and --prefix=~/x.
+unsetopt equals
+unsetopt bg_nice
+setopt magic_equal_subst
+
 # Take the common indentation off pasted text. Terminal UIs indent what they
 # print — Claude Code puts every line two columns in — and a pasted command that
 # begins with a blank is dropped by HIST_IGNORE_SPACE above, so it never reaches
